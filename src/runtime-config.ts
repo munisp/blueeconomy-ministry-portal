@@ -13,10 +13,17 @@ export interface ServiceRuntimeConfiguration {
   required_roles: string[];
 }
 
+export interface AdministrationRuntimeConfiguration {
+  onboarding_api_url: string;
+  organization_id: string;
+  allowed_roles: string[];
+}
+
 export interface PortalRuntimeConfiguration {
   application_name: string;
   oidc: OidcRuntimeConfiguration;
   services: ServiceRuntimeConfiguration[];
+  administration: AdministrationRuntimeConfiguration;
 }
 
 export async function loadRuntimeConfiguration(url: string): Promise<PortalRuntimeConfiguration> {
@@ -44,6 +51,17 @@ export function validateRuntimeConfiguration(candidate: unknown): PortalRuntimeC
   if (postLogout !== undefined) {
     oidc.post_logout_redirect_uri = validateHttpsUrl(postLogout, "oidc.post_logout_redirect_uri");
   }
+
+  const administrationCandidate = requiredRecord(candidate, "administration");
+  const administrationRoles = administrationCandidate.allowed_roles;
+  if (!Array.isArray(administrationRoles) || administrationRoles.length === 0 || !administrationRoles.every((role) => typeof role === "string" && role.trim().length > 0)) {
+    throw new Error("administration.allowed_roles must be a non-empty string array");
+  }
+  const administration: AdministrationRuntimeConfiguration = {
+    onboarding_api_url: validateHttpsUrl(requiredText(administrationCandidate, "onboarding_api_url"), "administration.onboarding_api_url"),
+    organization_id: requiredText(administrationCandidate, "organization_id"),
+    allowed_roles: administrationRoles.map((role) => role.trim()),
+  };
 
   const servicesCandidate = candidate.services;
   if (!Array.isArray(servicesCandidate) || servicesCandidate.length === 0) {
@@ -73,7 +91,7 @@ export function validateRuntimeConfiguration(candidate: unknown): PortalRuntimeC
       required_roles: roles.map((role) => role.trim()),
     };
   });
-  return { application_name: applicationName, oidc, services };
+  return { application_name: applicationName, oidc, services, administration };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

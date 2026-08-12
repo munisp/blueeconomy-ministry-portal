@@ -13,6 +13,11 @@ test("rejects a configuration without an approved service registry", () => {
         redirect_uri: "https://portal.example.invalid/callback",
         scope: "openid profile",
       },
+      administration: {
+        onboarding_api_url: "https://admin.example.invalid/v1/onboarding/requests",
+        organization_id: "approved-org",
+        allowed_roles: ["stakeholder.onboarding.request"],
+      },
       services: [],
     }),
     /services must be a non-empty array/,
@@ -28,6 +33,11 @@ test("rejects an insecure service health endpoint", () => {
         client_id: "portal",
         redirect_uri: "https://portal.example.invalid/callback",
         scope: "openid profile",
+      },
+      administration: {
+        onboarding_api_url: "https://admin.example.invalid/v1/onboarding/requests",
+        organization_id: "approved-org",
+        allowed_roles: ["stakeholder.onboarding.request"],
       },
       services: [{
         id: "evidence",

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { User, UserManager } from "oidc-client-ts";
 import { accessToken, completeAuthenticationCallback, createUserManager } from "./auth";
+import { OnboardingPanel } from "./OnboardingPanel";
 import { loadRuntimeConfiguration, type PortalRuntimeConfiguration, type ServiceRuntimeConfiguration } from "./runtime-config";
 import { probeService, type ServiceProbeResult } from "./service-client";
 
@@ -88,13 +89,16 @@ export default function App() {
       {state.kind === "loading" && <LoadingState />}
       {state.kind === "configuration-error" && <ConfigurationError error={state.error} />}
       {state.kind === "ready" && (
-        <ServiceDirectory
-          services={state.configuration.services}
-          authenticated={authenticated}
-          probes={probeResults}
-          probeInFlight={probeInFlight}
-          onProbe={runProbe}
-        />
+        <>
+          <OnboardingPanel configuration={state.configuration.administration} token={token} />
+          <ServiceDirectory
+            services={state.configuration.services}
+            authenticated={authenticated}
+            probes={probeResults}
+            probeInFlight={probeInFlight}
+            onProbe={runProbe}
+          />
+        </>
       )}
     </main>
   );

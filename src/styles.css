@@ -61,3 +61,17 @@ h3 { margin: 18px 0 24px; font-size: 1.6rem; line-height: 1.08; }
 
 @media (max-width: 900px) { .masthead, .section-heading { align-items: start; flex-direction: column; } .session-panel { justify-content: start; } .section-note { text-align: left; } .service-grid { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 620px) { .portal-shell { width: min(100% - 32px, 1280px); padding-top: 36px; } .masthead { gap: 24px; padding-bottom: 34px; } .assurance-banner { grid-template-columns: 1fr; gap: 12px; } .service-grid { grid-template-columns: 1fr; } }
+
+.onboarding-section { margin: 0 0 56px; padding: 34px; border: 1px solid rgba(121, 217, 211, 0.34); background: linear-gradient(135deg, rgba(16, 62, 74, 0.78), rgba(8, 35, 45, 0.88)); }
+.onboarding-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-top: 26px; }
+.onboarding-form label { display: grid; gap: 8px; color: #c9dade; font-size: 0.82rem; font-weight: 700; }
+.onboarding-form input { min-width: 0; border: 1px solid rgba(204, 231, 234, 0.35); border-radius: 0; padding: 12px; background: rgba(2, 22, 31, 0.62); color: #edf8fa; }
+.onboarding-form input:focus-visible { outline: 3px solid #f4d166; outline-offset: 2px; }
+.onboarding-form fieldset { grid-column: 1 / -1; border: 1px solid rgba(204, 231, 234, 0.24); padding: 16px; }
+.onboarding-form legend { padding: 0 8px; color: #a9cbd2; font-size: 0.76rem; font-weight: 750; letter-spacing: 0.08em; text-transform: uppercase; }
+.role-selector { display: flex; flex-wrap: wrap; gap: 10px; }
+.role-option { display: inline-flex !important; grid-template-columns: unset !important; align-items: center; gap: 8px !important; padding: 8px 10px; border: 1px solid rgba(204, 231, 234, 0.2); color: #d9e8eb !important; }
+.role-option input { min-width: unset; padding: 0; accent-color: #7de2dc; }
+.onboarding-actions { grid-column: 1 / -1; display: flex; align-items: center; gap: 14px; color: #bad0d6; font-size: 0.86rem; }
+.onboarding-outcome { grid-column: 1 / -1; margin: 0; color: #a9dcda; line-height: 1.5; overflow-wrap: anywhere; }
+@media (max-width: 700px) { .onboarding-section { padding: 22px; } .onboarding-form { grid-template-columns: 1fr; } }

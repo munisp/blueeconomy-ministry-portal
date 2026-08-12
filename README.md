@@ -16,6 +16,11 @@ The deployment must supply a non-secret `/platform-config.json` file. The portal
     "post_logout_redirect_uri": "https://approved-portal/",
     "scope": "approved scopes"
   },
+  "administration": {
+    "onboarding_api_url": "https://approved-admin-api/v1/onboarding/requests",
+    "organization_id": "approved-keycloak-organization",
+    "allowed_roles": ["approved.role"]
+  },
   "services": [
     {
       "id": "approved-service-id",
@@ -31,7 +36,7 @@ The JSON above is a **schema illustration only**: it must be replaced at deploym
 
 ## Runtime behaviour
 
-The portal authenticates through the configured OIDC authority using authorization code flow. It sends a bearer token only when an authenticated user explicitly requests an on-demand probe against a configured HTTPS endpoint. The UI reports the observed HTTP result; it does not create records or infer service health, authorisation, transactions or operational status.
+The portal authenticates through the configured OIDC authority using authorization code flow. It sends a bearer token only when an authenticated user explicitly submits an onboarding request to the configured central administration API or requests an on-demand probe against a configured HTTPS endpoint. An onboarding submission records a request for a separate approver; it does not directly create a local user, a password, an identity credential or a Keycloak account. The UI reports observed API outcomes and does not infer service health, authorisation, transactions or operational status.
 
 The backend and API edge remain authoritative for role enforcement. The portal’s displayed required roles are operational context, not a client-side access-control substitute.
 
