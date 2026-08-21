@@ -1,0 +1,11 @@
+node_modules
+npm-debug.log*
+dist
+.git
+.github
+.env
+.env.*
+!/.env.example
+platform-config.json
+coverage
+*.log

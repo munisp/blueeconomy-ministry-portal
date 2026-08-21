@@ -43,3 +43,21 @@ The backend and API edge remain authoritative for role enforcement. The portalâ€
 ## Real integration gate
 
 Before release, the Ministry must provide the actual OIDC discovery/realm settings, registered client, redirect/logout URIs, approved scopes and audience, APISIX routes, service health paths, TLS trust chain, content-security policy, user-role assignments, cross-origin policy and target cluster deployment. End-to-end sign-in and service probes must be executed in the authorised non-production environment and retained as release evidence.
+
+## Container artifact and local operational checks
+
+The repository now supplies a two-stage `Dockerfile` that builds the Vite artifact with `npm ci` and serves it through the unprivileged NGINX image on port `8080`. The final image contains only static build output and web-server policy; it does not contain a runtime configuration, OIDC secret, API credential or service endpoint. `/platform-config.json` must be mounted or otherwise supplied by the approved deployment mechanism as a non-secret, no-store runtime artifact.
+
+The image exposes `/healthz`, which returns a no-store JSON readiness response and does not claim downstream service availability. The NGINX policy has an SPA fallback, immutable cache control for fingerprinted assets, a non-cacheable configuration route, and browser controls including CSP, frame denial, no-referrer policy, MIME sniffing denial and a restrictive permissions policy. TLS/HSTS, ingress routing, external CSP review, image signing, registry policy, workload identity, audit logging and non-production OIDC sign-in/probe evidence remain environment-controlled release gates.
+
+```bash
+npm ci
+npm run build
+sudo docker build -t blueeconomy-ministry-portal:local .
+sudo docker run --rm -p 18081:8080 \
+  -v /approved/non-secret/platform-config.json:/usr/share/nginx/html/platform-config.json:ro \
+  blueeconomy-ministry-portal:local
+curl --fail http://127.0.0.1:18081/healthz
+```
+
+The path in this example is an operator-provided artifact. It is intentionally not present in this repository.
