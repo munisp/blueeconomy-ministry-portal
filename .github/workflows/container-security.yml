@@ -1,0 +1,79 @@
+name: Portal container security
+
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'Dockerfile'
+      - '.dockerignore'
+      - 'deploy/**'
+      - '.github/workflows/container-security.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'Dockerfile'
+      - '.dockerignore'
+      - 'deploy/**'
+      - '.github/workflows/container-security.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: portal-container-security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-scan:
+    name: Build and scan portal container
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      IMAGE_REF: local/blueeconomy-ministry-portal:${{ github.sha }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Node 22
+        uses: actions/setup-node@1e60f620b9541d4b789d0b6a5c8e0d82688d6d11 # v4.0.3
+        with:
+          node-version: 22.13.0
+          cache: npm
+
+      - name: Verify application and production dependencies
+        run: |
+          npm ci
+          npm audit --omit=dev
+          npm test
+          npm run build
+
+      - name: Build immutable local image
+        run: docker build --pull --tag "$IMAGE_REF" .
+
+      - name: Scan repository configuration and secrets
+        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2 # v0.28.0
+        with:
+          scan-type: fs
+          scanners: misconfig,secret
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+          skip-dirs: node_modules,dist
+
+      - name: Fail on HIGH or CRITICAL image vulnerabilities
+        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2 # v0.28.0
+        with:
+          image-ref: ${{ env.IMAGE_REF }}
+          format: table
+          severity: HIGH,CRITICAL
+          vuln-type: os,library
+          ignore-unfixed: true
+          exit-code: '1'
