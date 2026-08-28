@@ -34,9 +34,30 @@ The deployment must supply a non-secret `/platform-config.json` file. The portal
 
 The JSON above is a **schema illustration only**: it must be replaced at deployment with the actual Keycloak/OIDC authority, registered redirect URI, scopes, APISIX-approved service routes and role model. No corresponding configuration file is committed to this repository.
 
+## Portal route map
+
+The portal uses hash-based routing (no server route table required). Every route renders only observed data from the central administration API; there is no mock data, cached substitute or synthetic endpoint anywhere.
+
+| Hash route | Page | Backend verbs consumed | Access |
+|---|---|---|---|
+| `#/` | Overview: onboarding submission form + authorised service directory | `POST /v1/onboarding/requests` | Any authenticated session (operator roles required server-side for submission) |
+| `#/approvals` | Approval queue: tenant-scoped table with status filter, per-page search, offset pagination | `GET /v1/onboarding/requests` | Approver roles only (`platform-admin`, `nimasa-officer`); others get a truthful "insufficient role" panel |
+| `#/approvals/{uuid}` | Request detail: full submission data plus the action set for the recorded status — decision form (`submitted`/`identity_verified`), provision (`approved`), activate (`invited`) | `GET /v1/onboarding/requests` (paged lookup), `POST …/{id}/decision`, `POST …/{id}/provision`, `POST …/{id}/activate` | Approver roles only |
+
+Approver-journey states are derived strictly from the backend-recorded status (`src/approvals-model.ts`): non-actionable states (`pending_verification`, `identity_review`, in-flight `provisioning`/`activating`, terminal and ambiguous states) render an honest explanation instead of actions. Failure states are truthful throughout: HTTP 401 redirects to the approved identity authority for a fresh sign-in, HTTP 403 renders an explicit insufficient-role message, and network/5xx failures render a retry. Unknown hashes fall back to `#/`.
+
+### Backend verbs intentionally without UI
+
+The following administration-service verb groups exist but are **deliberately not surfaced** in this portal:
+
+- **Privacy processing activities** (`POST /v1/privacy/activities`, `GET /v1/privacy/activities/{id}`, `POST …/attest`, `POST …/submit-dpo-review`, `POST …/decision`): the workflow is versioned and evidence-bound (`expected_version`, `evidence_sha256` inputs), and — the blocking gap — **the backend exposes no list endpoint for privacy activities**, so a portal queue would require hand-typed activity UUIDs, the exact discovery anti-pattern flagged by the platform UI audit. Backend gap to close first: `GET /v1/privacy/activities` (tenant-scoped list).
+- **Enrollment identity review and batches** (`POST /v1/enrollment/requests/{id}/identity-review/*`, `POST /v1/enrollment/batches`, `POST /v1/enrollment/batches/{id}/confirm`): same class of gap — **no list endpoints for enrollment requests or batches** exist, so there is no honest queue to render. Self-service enrollment requests do appear in the approver queue once they reach a decidable state (`identity_verified`) because the onboarding list endpoint covers them. Backend gaps to close first: `GET /v1/enrollment/requests`, `GET /v1/enrollment/batches`.
+
+These will be surfaced when the backend list endpoints exist; building hand-typed-ID consoles before then would be dead UI.
+
 ## Runtime behaviour
 
-The portal authenticates through the configured OIDC authority using authorization code flow. It sends a bearer token only when an authenticated user explicitly submits an onboarding request to the configured central administration API or requests an on-demand probe against a configured HTTPS endpoint. An onboarding submission records a request for a separate approver; it does not directly create a local user, a password, an identity credential or a Keycloak account. The UI reports observed API outcomes and does not infer service health, authorisation, transactions or operational status.
+The portal authenticates through the configured OIDC authority using authorization code flow. It sends a bearer token only to the configured central administration API (onboarding submission, approver queue reads and approver actions) and to on-demand probes against configured HTTPS endpoints. An onboarding submission records a request for a separate approver; it does not directly create a local user, a password, an identity credential or a Keycloak account. The UI reports observed API outcomes and does not infer service health, authorisation, transactions or operational status.
 
 The backend and API edge remain authoritative for role enforcement. The portal’s displayed required roles are operational context, not a client-side access-control substitute.
 
