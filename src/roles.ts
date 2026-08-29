@@ -1,4 +1,5 @@
 import type { User } from "oidc-client-ts";
+import { parseClassification, type Classification } from "./tracking/geo-model";
 
 // Approver roles mirror the administration-service route policy for the
 // onboarding approver queue and decision/provision/activate verbs
@@ -44,6 +45,25 @@ export function heldRoles(user: User | null): Set<string> {
 
 export function isApprover(roles: Set<string>): boolean {
   return APPROVER_ROLES.some((role) => roles.has(role));
+}
+
+// heldClearance reads the geo clearance-ladder claim ("clearance") asserted
+// by the identity authority, matching the geo-service claim mapping
+// (internal/auth: an absent claim defaults to PUBLIC, the least-restrictive
+// label). An unparseable claim fails closed to null; the geo backend
+// remains the authoritative clearance enforcer.
+export function heldClearance(user: User | null): Classification | null {
+  if (user === null || typeof user.access_token !== "string" || user.access_token.length === 0) {
+    return null;
+  }
+  const claims = decodeJwtPayload(user.access_token);
+  if (claims === null) {
+    return null;
+  }
+  if (!("clearance" in claims)) {
+    return "PUBLIC";
+  }
+  return parseClassification(claims.clearance);
 }
 
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
