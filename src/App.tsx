@@ -5,6 +5,7 @@ import { OnboardingPanel } from "./OnboardingPanel";
 import { ApprovalQueuePage } from "./ApprovalQueuePage";
 import { ApprovalDetailPage } from "./ApprovalDetailPage";
 import { loadRuntimeConfiguration, type PortalRuntimeConfiguration, type ServiceRuntimeConfiguration } from "./runtime-config";
+import { initTelemetry } from "./telemetry";
 import { heldClearance, heldRoles, isApprover } from "./roles";
 import { isGeoReader, type Classification } from "./tracking/geo-model";
 import { navigateTo, routeHref, useHashRoute, type Route } from "./router";
@@ -241,6 +242,22 @@ function InsufficientRole() {
 
 async function bootstrap(): Promise<Extract<ApplicationState, { kind: "ready" }>> {
   const configuration = await loadRuntimeConfiguration(RUNTIME_CONFIGURATION_URL);
+  // RUM (phase-7 OTel): fire-and-forget — async, non-blocking, never in the
+  // critical render path. No telemetry.otlp_endpoint in the runtime config =
+  // telemetry disabled; init never rejects (sanctioned fail-open). This is
+  // also the GeoLibre coverage point (OTEL_DESIGN.md §3): the GIS library is
+  // client-side with no server telemetry, so its observability is the host
+  // portal's RUM (fetch/XHR + web-vitals spans), nothing more.
+  void initTelemetry({
+    endpoint: configuration.telemetry?.otlp_endpoint,
+    sampleRatio: configuration.telemetry?.sample_ratio,
+    serviceName: "blueeconomy-ministry-portal",
+    propagateTo: [
+      configuration.administration.onboarding_api_url,
+      ...configuration.services.map((service) => service.health_url),
+      ...(configuration.geospatial === undefined ? [] : [configuration.geospatial.geo_api_url]),
+    ],
+  });
   const manager = createUserManager(configuration.oidc);
   const callbackUser = await completeAuthenticationCallback(manager);
   const user = callbackUser ?? await manager.getUser();

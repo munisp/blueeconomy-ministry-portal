@@ -43,12 +43,30 @@ export interface GeospatialRuntimeConfiguration {
   geolibre_url?: string;
 }
 
+/**
+ * Optional RUM (real-user monitoring) wiring, phase-7 OTel design. The
+ * section is OPTIONAL: absent = browser telemetry disabled (the sanctioned
+ * fail-open); the portal renders identically either way.
+ */
+export interface TelemetryRuntimeConfiguration {
+  /**
+   * OTLP/HTTP base URL of the cluster collector agent reachable from the
+   * browser, e.g. "https://otel.example:4318". Plain HTTP is permitted here
+   * (unlike business endpoints) because dev/in-cluster collectors are often
+   * unencrypted; deployments should still prefer HTTPS via ingress.
+   */
+  otlp_endpoint: string;
+  /** Trace sampling ratio in [0, 1]. Default 0.1 (10%). */
+  sample_ratio: number;
+}
+
 export interface PortalRuntimeConfiguration {
   application_name: string;
   oidc: OidcRuntimeConfiguration;
   services: ServiceRuntimeConfiguration[];
   administration: AdministrationRuntimeConfiguration;
   geospatial?: GeospatialRuntimeConfiguration;
+  telemetry?: TelemetryRuntimeConfiguration;
 }
 
 export const GEO_POLL_INTERVAL_DEFAULT_MS = 15_000;
@@ -121,7 +139,33 @@ export function validateRuntimeConfiguration(candidate: unknown): PortalRuntimeC
     };
   });
   const geospatial = candidate.geospatial === undefined ? undefined : validateGeospatialConfiguration(requiredRecord(candidate, "geospatial"));
-  return { application_name: applicationName, oidc, services, administration, ...(geospatial === undefined ? {} : { geospatial }) };
+  const telemetry = candidate.telemetry === undefined ? undefined : validateTelemetryConfiguration(requiredRecord(candidate, "telemetry"));
+  return { application_name: applicationName, oidc, services, administration, ...(geospatial === undefined ? {} : { geospatial }), ...(telemetry === undefined ? {} : { telemetry }) };
+}
+
+export const DEFAULT_TELEMETRY_SAMPLE_RATIO = 0.1;
+
+function validateTelemetryConfiguration(candidate: Record<string, unknown>): TelemetryRuntimeConfiguration {
+  const endpoint = validateTelemetryUrl(requiredText(candidate, "otlp_endpoint"), "telemetry.otlp_endpoint");
+  const sampleRatio = candidate.sample_ratio ?? DEFAULT_TELEMETRY_SAMPLE_RATIO;
+  if (typeof sampleRatio !== "number" || !Number.isFinite(sampleRatio) || sampleRatio < 0 || sampleRatio > 1) {
+    throw new Error("telemetry.sample_ratio must be a number between 0 and 1");
+  }
+  return { otlp_endpoint: endpoint.replace(/\/+$/, ""), sample_ratio: sampleRatio };
+}
+
+/** HTTP(S) URL for the collector endpoint (HTTP allowed: dev/in-cluster OTLP). */
+function validateTelemetryUrl(value: string, field: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`${field} must be a valid HTTP(S) URL`);
+  }
+  if ((parsed.protocol !== "https:" && parsed.protocol !== "http:") || parsed.username.length > 0 || parsed.password.length > 0 || parsed.search.length > 0 || parsed.hash.length > 0) {
+    throw new Error(`${field} must be an HTTP(S) URL without credentials, query parameters or fragments`);
+  }
+  return parsed.toString();
 }
 
 // validateGeospatialConfiguration enforces the render-gated map wiring: the
