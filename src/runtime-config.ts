@@ -19,12 +19,41 @@ export interface AdministrationRuntimeConfiguration {
   allowed_roles: string[];
 }
 
+export interface AdministrationRuntimeConfiguration {
+  onboarding_api_url: string;
+  organization_id: string;
+  allowed_roles: string[];
+}
+
+// GeospatialRuntimeConfiguration is the render-gated (decision D8) wiring
+// for the #/tracking console and the GeoLibre pilot: every external resource
+// the map touches — the geo-service API, the raster base tiles and the
+// GeoLibre analysis app — comes from this deployment-supplied section, so the
+// portal renders fully offline/sovereign when pointed at internal endpoints.
+// The section is optional: without it the rest of the portal still runs and
+// the tracking routes render an explicit "not configured" state rather than
+// substituting any default endpoint.
+export interface GeospatialRuntimeConfiguration {
+  geo_api_url: string;
+  tile_url: string;
+  tile_attribution?: string;
+  poll_interval_ms: number;
+  cesium_base_url?: string;
+  geolibre_enabled: boolean;
+  geolibre_url?: string;
+}
+
 export interface PortalRuntimeConfiguration {
   application_name: string;
   oidc: OidcRuntimeConfiguration;
   services: ServiceRuntimeConfiguration[];
   administration: AdministrationRuntimeConfiguration;
+  geospatial?: GeospatialRuntimeConfiguration;
 }
+
+export const GEO_POLL_INTERVAL_DEFAULT_MS = 15_000;
+export const GEO_POLL_INTERVAL_MIN_MS = 5_000;
+export const GEO_POLL_INTERVAL_MAX_MS = 300_000;
 
 export async function loadRuntimeConfiguration(url: string): Promise<PortalRuntimeConfiguration> {
   const response = await fetch(url, { cache: "no-store", credentials: "same-origin" });
@@ -91,7 +120,72 @@ export function validateRuntimeConfiguration(candidate: unknown): PortalRuntimeC
       required_roles: roles.map((role) => role.trim()),
     };
   });
-  return { application_name: applicationName, oidc, services, administration };
+  const geospatial = candidate.geospatial === undefined ? undefined : validateGeospatialConfiguration(requiredRecord(candidate, "geospatial"));
+  return { application_name: applicationName, oidc, services, administration, ...(geospatial === undefined ? {} : { geospatial }) };
+}
+
+// validateGeospatialConfiguration enforces the render-gated map wiring: the
+// geo API must be an approved HTTPS endpoint, the tile template may be an
+// HTTPS URL or a same-origin absolute path (sovereign tile servers are
+// commonly reverse-proxied onto the portal origin), and every URL stays free
+// of credentials, query parameters and fragments exactly like the rest of
+// the runtime configuration.
+function validateGeospatialConfiguration(candidate: Record<string, unknown>): GeospatialRuntimeConfiguration {
+  const geoApiUrl = validateHttpsUrl(requiredText(candidate, "geo_api_url"), "geospatial.geo_api_url");
+  const tileUrl = validateTileTemplateUrl(requiredText(candidate, "tile_url"), "geospatial.tile_url");
+  const tileAttribution = optionalText(candidate, "tile_attribution");
+  const pollInterval = candidate.poll_interval_ms;
+  if (pollInterval !== undefined && (typeof pollInterval !== "number" || !Number.isInteger(pollInterval) || pollInterval < GEO_POLL_INTERVAL_MIN_MS || pollInterval > GEO_POLL_INTERVAL_MAX_MS)) {
+    throw new Error(`geospatial.poll_interval_ms must be an integer between ${GEO_POLL_INTERVAL_MIN_MS} and ${GEO_POLL_INTERVAL_MAX_MS}`);
+  }
+  const cesiumBaseUrl = optionalText(candidate, "cesium_base_url");
+  if (cesiumBaseUrl !== undefined && !cesiumBaseUrl.startsWith("/")) {
+    // Cesium assets are self-hosted (D5); only a same-origin path is
+    // accepted so the build can never silently redirect them to a CDN.
+    throw new Error("geospatial.cesium_base_url must be a same-origin absolute path (self-hosted Cesium assets)");
+  }
+  const geolibreEnabled = candidate.geolibre_enabled === true;
+  const geolibreUrl = optionalText(candidate, "geolibre_url");
+  const geospatial: GeospatialRuntimeConfiguration = {
+    geo_api_url: geoApiUrl,
+    tile_url: tileUrl,
+    poll_interval_ms: pollInterval ?? GEO_POLL_INTERVAL_DEFAULT_MS,
+    geolibre_enabled: geolibreEnabled,
+    ...(tileAttribution === undefined ? {} : { tile_attribution: tileAttribution }),
+    ...(cesiumBaseUrl === undefined ? {} : { cesium_base_url: cesiumBaseUrl }),
+  };
+  if (geolibreEnabled && geolibreUrl === undefined) {
+    throw new Error("geospatial.geolibre_url is required when geospatial.geolibre_enabled is true");
+  }
+  if (geolibreUrl !== undefined) {
+    // The GeoLibre iframe must be same-origin so the strict CSP frame-src
+    // 'self' holds; a cross-origin analysis app is rejected fail-closed.
+    if (!geolibreUrl.startsWith("/")) {
+      throw new Error("geospatial.geolibre_url must be a same-origin absolute path (reverse-proxied GeoLibre deployment)");
+    }
+    geospatial.geolibre_url = geolibreUrl;
+  }
+  return geospatial;
+}
+
+function validateTileTemplateUrl(value: string, field: string): string {
+  if (!value.includes("{z}") || !value.includes("{x}") || !value.includes("{y}")) {
+    throw new Error(`${field} must be a raster tile template containing {z}, {x} and {y}`);
+  }
+  if (value.startsWith("/")) {
+    if (value.includes("?") || value.includes("#") || value.startsWith("//")) {
+      throw new Error(`${field} must not carry query parameters, fragments or a scheme-relative host`);
+    }
+    return value;
+  }
+  // Validate the HTTPS structure like every other configured URL, but keep
+  // the literal template: URL serialisation would percent-encode the {z}
+  // placeholders and break substitution by the map engines.
+  const parsed = new URL(value);
+  if (parsed.protocol !== "https:" || parsed.username.length > 0 || parsed.password.length > 0 || parsed.search.length > 0 || parsed.hash.length > 0) {
+    throw new Error(`${field} must be an HTTPS URL without credentials, query parameters or fragments`);
+  }
+  return value;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
