@@ -28,7 +28,16 @@ The deployment must supply a non-secret `/platform-config.json` file. The portal
       "health_url": "https://approved-service/authorised-health-route",
       "required_roles": ["approved.role"]
     }
-  ]
+  ],
+  "geospatial": {
+    "geo_api_url": "https://approved-geo-service/v1/geo",
+    "tile_url": "https://approved-tile-service/{z}/{x}/{y}.png",
+    "tile_attribution": "Approved tile attribution",
+    "poll_interval_ms": 15000,
+    "cesium_base_url": "/cesium/",
+    "geolibre_enabled": false,
+    "geolibre_url": "/geolibre/"
+  }
 }
 ```
 
@@ -43,6 +52,8 @@ The portal uses hash-based routing (no server route table required). Every route
 | `#/` | Overview: onboarding submission form + authorised service directory | `POST /v1/onboarding/requests` | Any authenticated session (operator roles required server-side for submission) |
 | `#/approvals` | Approval queue: tenant-scoped table with status filter, per-page search, offset pagination | `GET /v1/onboarding/requests` | Approver roles only (`platform-admin`, `nimasa-officer`); others get a truthful "insufficient role" panel |
 | `#/approvals/{uuid}` | Request detail: full submission data plus the action set for the recorded status — decision form (`submitted`/`identity_verified`), provision (`approved`), activate (`invited`) | `GET /v1/onboarding/requests` (paged lookup), `POST …/{id}/decision`, `POST …/{id}/provision`, `POST …/{id}/activate` | Approver roles only |
+| `#/tracking` | Live vessel-tracking console: 3D/2D map, vessel markers + detail panel, 24 h track polylines, geofence zone overlays, SOS layer (clearance-gated), explicit DEGRADED state | geo-service `GET /v1/geo/vessels`, `GET /v1/geo/vessels/{mmsi}/track`, `GET /v1/geo/zones`, `GET /v1/geo/sos` | Geo-reader roles (`geo-reader`, `geo-zone-maker`, `geo-zone-checker`, `geo-admin`); SOS additionally requires `geo-sos-reader`/`geo-admin` AND RESTRICTED+ clearance; requires the `geospatial` config section |
+| `#/geolibre` | GeoLibre geospatial analysis workbench (PILOT) | self-hosted GeoLibre via `@geolibre/embed` postMessage protocol | Any authenticated session; requires build flag + `geospatial.geolibre_*` config |
 
 Approver-journey states are derived strictly from the backend-recorded status (`src/approvals-model.ts`): non-actionable states (`pending_verification`, `identity_review`, in-flight `provisioning`/`activating`, terminal and ambiguous states) render an honest explanation instead of actions. Failure states are truthful throughout: HTTP 401 redirects to the approved identity authority for a fresh sign-in, HTTP 403 renders an explicit insufficient-role message, and network/5xx failures render a retry. Unknown hashes fall back to `#/`.
 
@@ -55,11 +66,47 @@ The following administration-service verb groups exist but are **deliberately no
 
 These will be surfaced when the backend list endpoints exist; building hand-typed-ID consoles before then would be dead UI.
 
+Related read-surface constraint: the backend exposes **no get-by-id onboarding verb**, so `#/approvals/{uuid}` resolves a record by bounded paging of the tenant queue (at most 10 pages × 100 records) and a request that fell outside the window renders a truthful not-found state rather than a stale copy.
+
 ## Runtime behaviour
 
 The portal authenticates through the configured OIDC authority using authorization code flow. It sends a bearer token only to the configured central administration API (onboarding submission, approver queue reads and approver actions) and to on-demand probes against configured HTTPS endpoints. An onboarding submission records a request for a separate approver; it does not directly create a local user, a password, an identity credential or a Keycloak account. The UI reports observed API outcomes and does not infer service health, authorisation, transactions or operational status.
 
 The backend and API edge remain authoritative for role enforcement. The portal’s displayed required roles are operational context, not a client-side access-control substitute.
+
+## Vessel tracking console (`#/tracking`)
+
+The tracking console renders **only validated observations returned by the geo-service for the session's own clearance**; there is no mock vessel data, no simulated AIS feed and no cached substitute anywhere in the bundle (dev fixtures: none shipped).
+
+- **Data source.** All vessel, track, zone and SOS data comes from the deployment-configured geo-service (`geospatial.geo_api_url`, the `blueeconomy-geo-service` `/v1/geo` REST boundary). Freshness is polling-based (`geospatial.poll_interval_ms`, default 15 s, bounded 5–300 s) per the platform store-forward doctrine — no WebSocket dependency.
+- **Wire semantics.** Positions are fixed-point micro-degrees, speeds milli-knots and courses milli-degrees per the `geo.*.v1` contracts; the client refuses to coerce floating-point or out-of-range values, drops malformed records, and surfaces the dropped count. SOS alerts below the RESTRICTED contract floor are dropped at parse time.
+- **Classification handling.** A banner states the session's clearance on the geo ladder (read from the JWT `clearance` claim; absent defaults to PUBLIC, matching the service). The SOS layer is fetched and rendered only when the session holds `geo-sos-reader`/`geo-admin` AND a clearance covering RESTRICTED; the geo-service remains the authoritative enforcer.
+- **Map engines.** Primary: self-hosted **CesiumJS** (Apache-2.0), strictly ion-free — `Ion.defaultAccessToken=""`, the deployment tile template is the only base layer, geocoder/base-layer-picker are disabled, default ellipsoid terrain is kept, and runtime assets are served from the portal's own `/cesium` directory (copied from the npm package at build time). Fallback: **MapLibre GL** (BSD-3-Clause), auto-selected when WebGL2 is unavailable or chosen via the operator toggle. Both engines share the same render-gated tile endpoint and layer styling.
+- **Fail-closed degradation.** If the geo-service is unreachable the console shows an explicit DEGRADED state — last confirmed observations with their timestamp (stale-dimmed), or the bare base map — and never fabricates vessel data. Zone and SOS layers degrade per-section without taking down the live picture.
+
+## Render-gating and offline/sovereign operation (decision D8)
+
+Every external resource the portal touches is deployment-configured; pointed at internal endpoints the portal renders fully offline/sovereign:
+
+| Resource | Config key | Rules enforced |
+|---|---|---|
+| Geo-service API | `geospatial.geo_api_url` | HTTPS, no credentials/query/fragment |
+| Base map tiles | `geospatial.tile_url` | HTTPS or same-origin path, must contain literal `{z}/{x}/{y}`, no query (no API keys) |
+| Tile attribution | `geospatial.tile_attribution` | optional text |
+| Cesium runtime assets | build-time `CESIUM_BASE_URL` (default `/cesium/`) | self-hosted from the npm package; only same-origin paths accepted in config |
+| GeoLibre analysis app | `geospatial.geolibre_url` | same-origin absolute path only (reverse-proxied deployment) |
+| Fonts/icons | — | system font stack and inline styling only; no external font or icon CDN anywhere |
+
+The strict CSP (`deploy/nginx.conf`) permits `https:` image/connect targets precisely so the tile and geo endpoints can be sovereign internal origins; `worker-src 'self' blob:` covers the bundled map web workers and `frame-src 'self'` the same-origin GeoLibre iframe. Production builds ship **no sourcemaps** (`build.sourcemap: false`).
+
+## GeoLibre pilot (`#/geolibre`, decision D7)
+
+Status: **integration complete against the published `@geolibre/embed` npm package (MIT)** — no WASM vendoring was required, and no external CDN is involved: the GeoLibre app itself is a self-hosted deployment (e.g. `ghcr.io/opengeos/geolibre`) reverse-proxied onto the portal origin. The pilot requires BOTH switches:
+
+1. build flag `VITE_GEOLIBRE_ENABLED=true` (anything else compiles the panel out);
+2. runtime config `geospatial.geolibre_enabled: true` with a same-origin `geolibre_url`.
+
+The GeoLibre deployment must in turn allowlist this portal's origin (`GEOLIBRE_EMBED_ORIGINS` for the Docker image); without that allowlist the embed handshake times out and the panel says so honestly. Implemented and verified at build/test level: iframe embed, protocol handshake, fly-to-Nigeria-EEZ and list-layers commands, truthful connecting/ready/failed states. **Not yet verified against a live GeoLibre deployment** (none exists in this environment) — that end-to-end check remains a release gate alongside the "Real integration gate" below.
 
 ## Real integration gate
 
