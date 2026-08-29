@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { AdministrationApiError, submitOnboardingRequest } from "./administration-client";
+import { describeSubmissionFailure, submitOnboardingRequest } from "./administration-client";
 import type { AdministrationRuntimeConfiguration } from "./runtime-config";
 
 interface Properties {
@@ -40,11 +40,7 @@ export function OnboardingPanel({ configuration, token }: Properties) {
       setLastName("");
       setRoles([]);
     } catch (error) {
-      if (error instanceof AdministrationApiError && error.status === 403) {
-        setOutcome(`${error.message} — your session does not hold an onboarding-operator role (platform-admin, nimasa-officer, nwa-officer or niwa-officer); contact your tenant administrator.`);
-      } else {
-        setOutcome(error instanceof Error ? error.message : "onboarding request failed");
-      }
+      setOutcome(describeSubmissionFailure(error));
     } finally {
       setInFlight(false);
     }

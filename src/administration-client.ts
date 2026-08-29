@@ -204,6 +204,24 @@ export async function findOnboardingRequest(
   return null;
 }
 
+// ONBOARDING_OPERATOR_ROLES mirrors the administration-service route policy
+// for POST /v1/onboarding/requests (internal/admin/authz.go
+// onboardingOperatorRoles); it exists so a denied submission can explain
+// precisely which roles the backend requires instead of surfacing a bare
+// HTTP 403.
+export const ONBOARDING_OPERATOR_ROLES: readonly string[] = ["platform-admin", "nimasa-officer", "nwa-officer", "niwa-officer"];
+
+// describeSubmissionFailure renders a truthful, role-aware outcome message
+// for a failed onboarding submission: a signed-in user lacking the operator
+// role sees which roles the backend requires and who to contact; other
+// failures pass through the observed diagnostic unchanged.
+export function describeSubmissionFailure(error: unknown): string {
+  if (error instanceof AdministrationApiError && error.status === 403) {
+    return `${error.message} — your session does not hold an onboarding-operator role (${ONBOARDING_OPERATOR_ROLES.join(", ")}); contact your tenant administrator.`;
+  }
+  return error instanceof Error ? error.message : "onboarding request failed";
+}
+
 export type OnboardingDecision = "approve" | "reject";
 
 // submitOnboardingDecision posts the approver decision
