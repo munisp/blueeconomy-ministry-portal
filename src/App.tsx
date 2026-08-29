@@ -1,12 +1,21 @@
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import type { User, UserManager } from "oidc-client-ts";
 import { accessToken, completeAuthenticationCallback, createUserManager } from "./auth";
 import { OnboardingPanel } from "./OnboardingPanel";
 import { ApprovalQueuePage } from "./ApprovalQueuePage";
 import { ApprovalDetailPage } from "./ApprovalDetailPage";
 import { loadRuntimeConfiguration, type PortalRuntimeConfiguration, type ServiceRuntimeConfiguration } from "./runtime-config";
-import { heldRoles, isApprover } from "./roles";
+import { heldClearance, heldRoles, isApprover } from "./roles";
+import { isGeoReader, type Classification } from "./tracking/geo-model";
 import { navigateTo, routeHref, useHashRoute, type Route } from "./router";
+
+// The map engines (Cesium, MapLibre) and the GeoLibre embed are heavy and
+// route-scoped: they load only when the operator navigates to the console,
+// keeping the controlled-entry pages lean. The PBAC guard components are
+// tiny and stay in the main bundle.
+const TrackingPage = lazy(() => import("./tracking/TrackingPage").then((module) => ({ default: module.TrackingPage })));
+const TrackingAccessNotice = lazy(() => import("./tracking/TrackingPage").then((module) => ({ default: module.TrackingAccessNotice })));
+const GeoLibrePage = lazy(() => import("./tracking/GeoLibrePage").then((module) => ({ default: module.GeoLibrePage })));
 import { probeService, type ServiceProbeResult } from "./service-client";
 
 const RUNTIME_CONFIGURATION_URL = "/platform-config.json";
@@ -44,6 +53,7 @@ export default function App() {
   const authenticated = token !== null;
   const roles = state.kind === "ready" ? heldRoles(state.user) : new Set<string>();
   const approver = isApprover(roles);
+  const clearance = state.kind === "ready" ? heldClearance(state.user) : null;
 
   async function startSignIn(): Promise<void> {
     if (state.kind !== "ready") {
@@ -93,6 +103,8 @@ export default function App() {
               state={state}
               token={token}
               approver={approver}
+              roles={roles}
+              clearance={clearance}
               onSignIn={() => void startSignIn()}
               onUnauthorized={handleUnauthorized}
             />
@@ -104,10 +116,13 @@ export default function App() {
 }
 
 function SideNav({ route }: { route: Route }) {
+  const approvalsActive = route.name === "approvals" || route.name === "approval-detail";
   return (
     <nav className="side-nav" aria-label="Portal sections">
       <a className={route.name === "overview" ? "side-nav__link side-nav__link--active" : "side-nav__link"} href={routeHref({ name: "overview" })}>Overview</a>
-      <a className={route.name !== "overview" ? "side-nav__link side-nav__link--active" : "side-nav__link"} href={routeHref({ name: "approvals" })}>Approval queue</a>
+      <a className={approvalsActive ? "side-nav__link side-nav__link--active" : "side-nav__link"} href={routeHref({ name: "approvals" })}>Approval queue</a>
+      <a className={route.name === "tracking" ? "side-nav__link side-nav__link--active" : "side-nav__link"} href={routeHref({ name: "tracking" })}>Vessel tracking</a>
+      <a className={route.name === "geolibre" ? "side-nav__link side-nav__link--active" : "side-nav__link"} href={routeHref({ name: "geolibre" })}>GeoLibre analysis</a>
     </nav>
   );
 }
@@ -117,18 +132,47 @@ interface RoutedContentProperties {
   state: Extract<ApplicationState, { kind: "ready" }>;
   token: string | null;
   approver: boolean;
+  roles: ReadonlySet<string>;
+  clearance: Classification | null;
   onSignIn: () => void;
   onUnauthorized: () => void;
 }
 
-function RoutedContent({ route, state, token, approver, onSignIn, onUnauthorized }: RoutedContentProperties) {
+function RoutedContent({ route, state, token, approver, roles, clearance, onSignIn, onUnauthorized }: RoutedContentProperties) {
   if (route.name === "overview") {
     return <OverviewPage configuration={state.configuration} token={token} />;
   }
-  // Approver journey routes are guarded by the observed role claim; the
-  // backend remains the authoritative enforcer.
+  // Guarded routes are gated by the observed role claims; the backends
+  // remain the authoritative enforcers.
   if (token === null) {
     return <SignInRequired onSignIn={onSignIn} />;
+  }
+  if (route.name === "geolibre") {
+    return (
+      <Suspense fallback={<MapLoadingNotice label="Loading the GeoLibre analysis panel" />}>
+        <GeoLibrePage configuration={state.configuration.geospatial} />
+      </Suspense>
+    );
+  }
+  if (route.name === "tracking") {
+    if (state.configuration.geospatial === undefined) {
+      return <TrackingNotConfigured />;
+    }
+    return (
+      <Suspense fallback={<MapLoadingNotice label="Loading the tracking console" />}>
+        {isGeoReader(roles) ? (
+          <TrackingPage
+            configuration={state.configuration.geospatial}
+            token={token}
+            roles={roles}
+            clearance={clearance}
+            onUnauthorized={onUnauthorized}
+          />
+        ) : (
+          <TrackingAccessNotice roles={roles} />
+        )}
+      </Suspense>
+    );
   }
   if (!approver) {
     return <InsufficientRole />;
@@ -165,6 +209,26 @@ function SignInRequired({ onSignIn }: { onSignIn: () => void }) {
   );
 }
 
+function MapLoadingNotice({ label }: { label: string }) {
+  return (
+    <section className="empty-state" aria-live="polite">
+      <p className="eyebrow">Console loading</p>
+      <h2>{label}</h2>
+      <p>The map engine assets are served from this deployment and load on demand.</p>
+    </section>
+  );
+}
+
+function TrackingNotConfigured() {
+  return (
+    <section className="empty-state" aria-live="polite">
+      <p className="eyebrow">Geospatial integration not configured</p>
+      <h2>The deployment has not wired the tracking console</h2>
+      <p>The runtime configuration carries no <code>geospatial</code> section, so there is no approved geo-service endpoint or tile source to render. The portal does not substitute any default endpoint, tile provider or cached vessel data.</p>
+    </section>
+  );
+}
+
 function InsufficientRole() {
   return (
     <section className="empty-state empty-state--alert" role="alert">
@@ -193,13 +257,22 @@ function LoadingState() {
   );
 }
 
+// sanitiseDiagnostic strips control characters and caps the length of the
+// configuration diagnostic before it is rendered, so a hostile or malformed
+// config payload cannot spray terminal escapes or an unbounded body into
+// the page (React still performs the markup escaping).
+function sanitiseDiagnostic(error: string): string {
+  const cleaned = error.replace(/[\x00-\x1F\x7F]/g, " ").replace(/\s+/g, " ").trim();
+  return cleaned.length > 300 ? `${cleaned.slice(0, 300)}…` : cleaned;
+}
+
 function ConfigurationError({ error }: { error: string }) {
   return (
     <section className="empty-state empty-state--alert" role="alert">
       <p className="eyebrow">Integration gate active</p>
       <h2>Approved environment configuration is required</h2>
       <p>The portal did not load a valid runtime configuration. No substitute endpoint or local session has been created.</p>
-      <pre>{error}</pre>
+      <pre>{sanitiseDiagnostic(error)}</pre>
     </section>
   );
 }

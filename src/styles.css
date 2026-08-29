@@ -136,3 +136,78 @@ h3 { margin: 18px 0 24px; font-size: 1.6rem; line-height: 1.08; }
   .side-nav { position: static; display: flex; }
   .detail-grid { grid-template-columns: 1fr; }
 }
+
+/* Tracking console (#/tracking) and GeoLibre pilot (#/geolibre) */
+
+.tracking-console { display: grid; gap: 18px; }
+.tracking-console .assurance-banner { margin: 0; }
+.assurance-banner--restricted { border-color: rgba(240, 183, 107, 0.6); background: rgba(45, 32, 18, 0.62); }
+.assurance-banner--restricted .assurance-mark { border-color: rgba(240, 183, 107, 0.75); color: #f0b76b; }
+
+.tracking-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; padding: 12px 16px; border: 1px solid rgba(203, 231, 235, 0.19); background: rgba(7, 28, 39, 0.72); }
+.tracking-toolbar__group { display: flex; align-items: center; gap: 8px; }
+.tracking-toolbar__label { color: #8fb0ba; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.tracking-toolbar select { border: 1px solid rgba(204, 231, 234, 0.35); padding: 8px 10px; background: rgba(2, 22, 31, 0.62); color: #edf8fa; font: inherit; }
+.tracking-toolbar select:focus-visible { outline: 3px solid #f4d166; outline-offset: 2px; }
+
+.chip-toggle { border: 1px solid rgba(125, 226, 220, 0.4); border-radius: 999px; padding: 6px 12px; background: transparent; color: #a5ece8; cursor: pointer; font-size: 0.82rem; font-weight: 700; }
+.chip-toggle:hover { background: rgba(125, 226, 220, 0.1); }
+.chip-toggle:focus-visible { outline: 3px solid #f4d166; outline-offset: 2px; }
+.chip-toggle--active { background: rgba(125, 226, 220, 0.18); border-color: #7de2dc; color: #eaf7f8; }
+
+.tracking-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 18px; align-items: start; }
+.tracking-map { position: relative; border: 1px solid rgba(203, 231, 235, 0.19); background: #0b2632; }
+.tracking-map__canvas { width: 100%; height: min(62vh, 640px); min-height: 380px; }
+.tracking-map__legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 0; padding: 8px 12px; border-top: 1px solid rgba(203, 231, 235, 0.19); color: #b9cfd6; font-size: 0.78rem; }
+.tracking-map__legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
+.legend-dot--hollow { border: 2px solid #9aabb2; background: transparent; }
+
+.tracking-side { display: grid; gap: 14px; min-width: 0; }
+.tracking-panel { padding: 18px; border: 1px solid rgba(203, 231, 235, 0.19); background: rgba(7, 28, 39, 0.72); }
+.tracking-panel--sos { border-color: rgba(255, 82, 82, 0.35); }
+.tracking-panel__heading { display: flex; justify-content: space-between; align-items: start; gap: 10px; }
+.tracking-panel__title { margin: 0 0 10px; font-family: inherit; font-size: 0.95rem; font-weight: 750; letter-spacing: 0.02em; }
+.tracking-note { margin: 8px 0 0; color: #9db8c0; font-size: 0.82rem; line-height: 1.5; }
+.tracking-note--warn { color: #eac674; }
+
+.vessel-list { list-style: none; margin: 10px 0 0; padding: 0; max-height: 300px; overflow-y: auto; display: grid; gap: 4px; }
+.vessel-row { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; border: 1px solid transparent; background: transparent; color: #d9e8eb; cursor: pointer; font-size: 0.86rem; text-align: left; }
+.vessel-row:hover { background: rgba(125, 226, 220, 0.07); }
+.vessel-row:focus-visible { outline: 3px solid #f4d166; outline-offset: 2px; }
+.vessel-row--selected { border-color: rgba(125, 226, 220, 0.55); background: rgba(125, 226, 220, 0.12); }
+.vessel-row__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; }
+.vessel-row__name--stale { opacity: 0.55; }
+.vessel-row__stale { color: #eac674; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; }
+
+.source-badge { padding: 3px 7px; border: 1px solid rgba(218, 234, 237, 0.25); font-size: 0.68rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+.source-badge--ais { color: #58c4dd; border-color: rgba(88, 196, 221, 0.5); }
+.source-badge--gsm_tracker { color: #9be2b8; border-color: rgba(114, 214, 167, 0.5); }
+.source-badge--sat_tracker { color: #b39ddb; border-color: rgba(179, 157, 219, 0.55); }
+.source-badge--app_report { color: #e9c46a; border-color: rgba(233, 196, 106, 0.5); }
+.source-badge--unmatched { color: #9aabb2; border-color: rgba(154, 171, 178, 0.5); border-style: dashed; }
+
+.vessel-detail { display: grid; gap: 8px; margin: 0; }
+.vessel-detail div { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 10px; align-items: baseline; }
+.vessel-detail dt { color: #8fb0ba; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+.vessel-detail dd { margin: 0; color: #d9e8eb; font-size: 0.9rem; overflow-wrap: anywhere; }
+
+.sos-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 10px; max-height: 260px; overflow-y: auto; }
+.sos-item { display: grid; gap: 4px; padding: 10px 12px; border-left: 3px solid #ff5252; background: rgba(45, 18, 18, 0.4); }
+.sos-item__position { color: #f2d3d3; font-weight: 700; font-size: 0.86rem; }
+.sos-item__time, .sos-item__ref { color: #c9a6a6; font-size: 0.78rem; }
+.sos-item__text { color: #e8c9c9; font-size: 0.84rem; line-height: 1.45; overflow-wrap: anywhere; }
+
+.geolibre-panel { display: grid; gap: 16px; }
+.geolibre-toolbar { display: flex; flex-wrap: wrap; gap: 10px; }
+.geolibre-toolbar .button--outline { width: auto; }
+.geolibre-frame { width: 100%; height: min(64vh, 680px); min-height: 400px; border: 1px solid rgba(203, 231, 235, 0.19); background: #0b2632; }
+.geolibre-layers { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.geolibre-layers li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; border: 1px solid rgba(203, 231, 235, 0.14); }
+.geolibre-layers__name { color: #d9e8eb; font-weight: 650; }
+.geolibre-layers__meta { color: #9db8c0; font-size: 0.8rem; }
+
+@media (max-width: 1100px) {
+  .tracking-layout { grid-template-columns: 1fr; }
+  .tracking-map__canvas { height: 56vh; }
+}

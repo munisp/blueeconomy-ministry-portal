@@ -6,7 +6,9 @@ import { useEffect, useState } from "react";
 export type Route =
   | { name: "overview" }
   | { name: "approvals" }
-  | { name: "approval-detail"; id: string };
+  | { name: "approval-detail"; id: string }
+  | { name: "tracking" }
+  | { name: "geolibre" };
 
 const UUID_PATTERN = /^[0-9a-fA-F-]{36}$/;
 
@@ -22,6 +24,12 @@ export function parseRoute(hash: string): Route {
   if (segments.length === 1 && segments[0] === "approvals") {
     return { name: "approvals" };
   }
+  if (segments.length === 1 && segments[0] === "tracking") {
+    return { name: "tracking" };
+  }
+  if (segments.length === 1 && segments[0] === "geolibre") {
+    return { name: "geolibre" };
+  }
   if (segments.length === 2 && segments[0] === "approvals" && UUID_PATTERN.test(segments[1])) {
     return { name: "approval-detail", id: segments[1] };
   }
@@ -36,6 +44,10 @@ export function routeHref(route: Route): string {
       return "#/approvals";
     case "approval-detail":
       return `#/approvals/${route.id}`;
+    case "tracking":
+      return "#/tracking";
+    case "geolibre":
+      return "#/geolibre";
   }
 }
 
