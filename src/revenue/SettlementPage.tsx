@@ -10,7 +10,7 @@
 // /v1/fare/settlements/run; there is no GET for executed runs, so that read
 // surface is declared as an integration gap rather than reconstructed.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { RevenueRuntimeConfiguration } from "../runtime-config";
 import { classifyRevenueError, fetchBookingReceipt, fetchSettlementReport } from "./revenue-client";
 import type { BookingRecord, RevenuePanelError, SettlementAggregate } from "./revenue-model";
@@ -37,7 +37,7 @@ export function SettlementPage({ configuration, token, onUnauthorized }: Propert
   const [toInclusive, setTo] = useState(initial.toInclusive);
   const [state, setState] = useState<SettlementState>({ kind: "idle" });
 
-  const range = resolveDateRange(from, toInclusive);
+  const range = useMemo(() => resolveDateRange(from, toInclusive), [from, toInclusive]);
 
   const load = useCallback(async () => {
     if (submittedOperator === null || typeof range === "string") {

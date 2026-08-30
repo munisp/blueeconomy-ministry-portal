@@ -10,7 +10,7 @@
 // no-data card, never zeros; the W-FEAT-6/7 read surfaces are declared as
 // integration gaps, not drawn.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { RevenueRuntimeConfiguration } from "../runtime-config";
 import { classifyRevenueError, fetchSubsidyReport, fetchTariffRates } from "./revenue-client";
 import type { RevenuePanelError, SubsidySeriesPoint, TariffRateRow } from "./revenue-model";
@@ -58,7 +58,7 @@ export function RevenueOverviewPage({ configuration, token, onUnauthorized }: Pr
   const [ratesState, setRatesState] = useState<RatesState>({ kind: "loading" });
   const [seriesState, setSeriesState] = useState<SeriesState>({ kind: "loading" });
 
-  const range = resolveDateRange(from, toInclusive);
+  const range = useMemo(() => resolveDateRange(from, toInclusive), [from, toInclusive]);
 
   const loadRates = useCallback(async () => {
     setRatesState({ kind: "loading" });

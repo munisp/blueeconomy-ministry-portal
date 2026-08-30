@@ -8,7 +8,7 @@
 // a pass-vs-pay-go ride mix, or a journey-level record list; those render
 // as integration-gap notes, never as estimated figures.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { RevenueRuntimeConfiguration } from "../runtime-config";
 import { classifyRevenueError, fetchSubsidyReport } from "./revenue-client";
 import type { DateRange, RevenuePanelError, SubsidyLine } from "./revenue-model";
@@ -32,7 +32,7 @@ export function SubsidyPage({ configuration, token, onUnauthorized }: Properties
   const [toInclusive, setTo] = useState(initial.toInclusive);
   const [state, setState] = useState<SubsidyState>({ kind: "loading" });
 
-  const range = resolveDateRange(from, toInclusive);
+  const range = useMemo(() => resolveDateRange(from, toInclusive), [from, toInclusive]);
 
   const load = useCallback(async () => {
     if (typeof range === "string") {
