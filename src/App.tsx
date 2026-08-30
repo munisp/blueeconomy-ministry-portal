@@ -7,6 +7,11 @@ import { ApprovalDetailPage } from "./ApprovalDetailPage";
 import { loadRuntimeConfiguration, type PortalRuntimeConfiguration, type ServiceRuntimeConfiguration } from "./runtime-config";
 import { initTelemetry } from "./telemetry";
 import { heldClearance, heldRoles, isApprover } from "./roles";
+import { isRevenueReader } from "./revenue/revenue-model";
+import { RevenueOverviewPage } from "./revenue/RevenueOverviewPage";
+import { SubsidyPage } from "./revenue/SubsidyPage";
+import { SettlementPage } from "./revenue/SettlementPage";
+import { AssessmentPage } from "./revenue/AssessmentPage";
 import { isGeoReader, type Classification } from "./tracking/geo-model";
 import { navigateTo, routeHref, useHashRoute, type Route } from "./router";
 
@@ -124,6 +129,10 @@ function SideNav({ route }: { route: Route }) {
       <a className={approvalsActive ? "side-nav__link side-nav__link--active" : "side-nav__link"} href={routeHref({ name: "approvals" })}>Approval queue</a>
       <a className={route.name === "tracking" ? "side-nav__link side-nav__link--active" : "side-nav__link"} href={routeHref({ name: "tracking" })}>Vessel tracking</a>
       <a className={route.name === "geolibre" ? "side-nav__link side-nav__link--active" : "side-nav__link"} href={routeHref({ name: "geolibre" })}>GeoLibre analysis</a>
+      <a className={route.name === "revenue" ? "side-nav__link side-nav__link--active" : "side-nav__link"} href={routeHref({ name: "revenue" })}>Revenue overview</a>
+      <a className={route.name === "revenue-subsidy" ? "side-nav__link side-nav__link--active" : "side-nav__link"} href={routeHref({ name: "revenue-subsidy" })}>Fare subsidies</a>
+      <a className={route.name === "revenue-settlements" ? "side-nav__link side-nav__link--active" : "side-nav__link"} href={routeHref({ name: "revenue-settlements" })}>Settlements</a>
+      <a className={route.name === "revenue-assessments" ? "side-nav__link side-nav__link--active" : "side-nav__link"} href={routeHref({ name: "revenue-assessments" })}>Tariffs</a>
     </nav>
   );
 }
@@ -147,6 +156,27 @@ function RoutedContent({ route, state, token, approver, roles, clearance, onSign
   // remain the authoritative enforcers.
   if (token === null) {
     return <SignInRequired onSignIn={onSignIn} />;
+  }
+  // Revenue dashboards (W-FEAT-9): render-gated on the optional `revenue`
+  // runtime section, role-gated on the observed report-reader roles; the
+  // upstream services remain the authoritative enforcers.
+  if (route.name === "revenue" || route.name === "revenue-subsidy" || route.name === "revenue-settlements" || route.name === "revenue-assessments") {
+    if (state.configuration.revenue === undefined) {
+      return <RevenueNotConfigured />;
+    }
+    if (!isRevenueReader(roles)) {
+      return <RevenueInsufficientRole />;
+    }
+    if (route.name === "revenue") {
+      return <RevenueOverviewPage configuration={state.configuration.revenue} token={token} onUnauthorized={onUnauthorized} />;
+    }
+    if (route.name === "revenue-subsidy") {
+      return <SubsidyPage configuration={state.configuration.revenue} token={token} onUnauthorized={onUnauthorized} />;
+    }
+    if (route.name === "revenue-settlements") {
+      return <SettlementPage configuration={state.configuration.revenue} token={token} onUnauthorized={onUnauthorized} />;
+    }
+    return <AssessmentPage configuration={state.configuration.revenue} token={token} onUnauthorized={onUnauthorized} />;
   }
   if (route.name === "geolibre") {
     return (
@@ -230,6 +260,26 @@ function TrackingNotConfigured() {
   );
 }
 
+function RevenueNotConfigured() {
+  return (
+    <section className="empty-state" aria-live="polite">
+      <p className="eyebrow">Revenue integration not configured</p>
+      <h2>The deployment has not wired the revenue dashboards</h2>
+      <p>The runtime configuration carries no <code>revenue</code> section, so there are no approved ferry, tariff or port-interoperability endpoints to read. The portal does not substitute any default endpoint or cached revenue figures.</p>
+    </section>
+  );
+}
+
+function RevenueInsufficientRole() {
+  return (
+    <section className="empty-state empty-state--alert" role="alert">
+      <p className="eyebrow">Insufficient role</p>
+      <h2>Your account does not hold a revenue-reader role</h2>
+      <p>The revenue dashboards mirror the ferry-ticketing report route policy: a report-reader role (<code>state-officer</code>, <code>niwa-officer</code>, <code>nimasa-observer</code>, <code>independent-auditor</code>, <code>auditor</code> or <code>fmmbe-oversight</code>) is required. The upstream services enforce this independently; the portal declines to render figures your session cannot authorise.</p>
+    </section>
+  );
+}
+
 function InsufficientRole() {
   return (
     <section className="empty-state empty-state--alert" role="alert">
@@ -256,6 +306,13 @@ async function bootstrap(): Promise<Extract<ApplicationState, { kind: "ready" }>
       configuration.administration.onboarding_api_url,
       ...configuration.services.map((service) => service.health_url),
       ...(configuration.geospatial === undefined ? [] : [configuration.geospatial.geo_api_url]),
+      // Revenue dashboards (W-FEAT-9): the dashboard fetches reuse this one
+      // traced path; propagation extends to the configured revenue upstreams.
+      ...(configuration.revenue === undefined ? [] : [
+        configuration.revenue.ferry_api_url,
+        configuration.revenue.tariff_api_url,
+        configuration.revenue.port_interop_api_url,
+      ]),
     ],
   });
   const manager = createUserManager(configuration.oidc);

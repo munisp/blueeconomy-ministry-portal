@@ -8,7 +8,11 @@ export type Route =
   | { name: "approvals" }
   | { name: "approval-detail"; id: string }
   | { name: "tracking" }
-  | { name: "geolibre" };
+  | { name: "geolibre" }
+  | { name: "revenue" }
+  | { name: "revenue-subsidy" }
+  | { name: "revenue-settlements" }
+  | { name: "revenue-assessments" };
 
 const UUID_PATTERN = /^[0-9a-fA-F-]{36}$/;
 
@@ -30,6 +34,18 @@ export function parseRoute(hash: string): Route {
   if (segments.length === 1 && segments[0] === "geolibre") {
     return { name: "geolibre" };
   }
+  if (segments.length === 1 && segments[0] === "revenue") {
+    return { name: "revenue" };
+  }
+  if (segments.length === 2 && segments[0] === "revenue" && segments[1] === "subsidy") {
+    return { name: "revenue-subsidy" };
+  }
+  if (segments.length === 2 && segments[0] === "revenue" && segments[1] === "settlements") {
+    return { name: "revenue-settlements" };
+  }
+  if (segments.length === 2 && segments[0] === "revenue" && segments[1] === "assessments") {
+    return { name: "revenue-assessments" };
+  }
   if (segments.length === 2 && segments[0] === "approvals" && UUID_PATTERN.test(segments[1])) {
     return { name: "approval-detail", id: segments[1] };
   }
@@ -48,6 +64,14 @@ export function routeHref(route: Route): string {
       return "#/tracking";
     case "geolibre":
       return "#/geolibre";
+    case "revenue":
+      return "#/revenue";
+    case "revenue-subsidy":
+      return "#/revenue/subsidy";
+    case "revenue-settlements":
+      return "#/revenue/settlements";
+    case "revenue-assessments":
+      return "#/revenue/assessments";
   }
 }
 

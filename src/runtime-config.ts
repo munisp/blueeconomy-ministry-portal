@@ -43,6 +43,22 @@ export interface GeospatialRuntimeConfiguration {
   geolibre_url?: string;
 }
 
+// RevenueRuntimeConfiguration is the render-gated wiring for the ministry
+// revenue dashboards (W-FEAT-9): every upstream the dashboards read is a
+// deployment-supplied approved endpoint — the BlueFare report surface of
+// ferry-ticketing, the statutory tariff engine of financial-controls and the
+// booking payment surface of port-interoperability. The section is OPTIONAL:
+// without it the revenue routes render an explicit "not configured" state
+// rather than substituting any default endpoint or cached figures.
+export interface RevenueRuntimeConfiguration {
+  /** Base URL of the ferry-ticketing API (BlueFare settlement/subsidy reports). */
+  ferry_api_url: string;
+  /** Base URL of the financial-controls tariff engine (rates, assessments, exemption audits). */
+  tariff_api_url: string;
+  /** Base URL of the port-interoperability API (booking payment receipts, refund state). */
+  port_interop_api_url: string;
+}
+
 /**
  * Optional RUM (real-user monitoring) wiring, phase-7 OTel design. The
  * section is OPTIONAL: absent = browser telemetry disabled (the sanctioned
@@ -67,6 +83,7 @@ export interface PortalRuntimeConfiguration {
   administration: AdministrationRuntimeConfiguration;
   geospatial?: GeospatialRuntimeConfiguration;
   telemetry?: TelemetryRuntimeConfiguration;
+  revenue?: RevenueRuntimeConfiguration;
 }
 
 export const GEO_POLL_INTERVAL_DEFAULT_MS = 15_000;
@@ -140,7 +157,20 @@ export function validateRuntimeConfiguration(candidate: unknown): PortalRuntimeC
   });
   const geospatial = candidate.geospatial === undefined ? undefined : validateGeospatialConfiguration(requiredRecord(candidate, "geospatial"));
   const telemetry = candidate.telemetry === undefined ? undefined : validateTelemetryConfiguration(requiredRecord(candidate, "telemetry"));
-  return { application_name: applicationName, oidc, services, administration, ...(geospatial === undefined ? {} : { geospatial }), ...(telemetry === undefined ? {} : { telemetry }) };
+  const revenue = candidate.revenue === undefined ? undefined : validateRevenueConfiguration(requiredRecord(candidate, "revenue"));
+  return { application_name: applicationName, oidc, services, administration, ...(geospatial === undefined ? {} : { geospatial }), ...(telemetry === undefined ? {} : { telemetry }), ...(revenue === undefined ? {} : { revenue }) };
+}
+
+// validateRevenueConfiguration enforces the render-gated revenue wiring: all
+// three upstream bases are required together (a partial section is rejected
+// fail-closed rather than silently degrading one dashboard family) and each
+// is an approved HTTPS endpoint exactly like every other business URL.
+function validateRevenueConfiguration(candidate: Record<string, unknown>): RevenueRuntimeConfiguration {
+  return {
+    ferry_api_url: validateHttpsUrl(requiredText(candidate, "ferry_api_url"), "revenue.ferry_api_url"),
+    tariff_api_url: validateHttpsUrl(requiredText(candidate, "tariff_api_url"), "revenue.tariff_api_url"),
+    port_interop_api_url: validateHttpsUrl(requiredText(candidate, "port_interop_api_url"), "revenue.port_interop_api_url"),
+  };
 }
 
 export const DEFAULT_TELEMETRY_SAMPLE_RATIO = 0.1;

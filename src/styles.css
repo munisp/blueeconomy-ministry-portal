@@ -211,3 +211,65 @@ h3 { margin: 18px 0 24px; font-size: 1.6rem; line-height: 1.08; }
   .tracking-layout { grid-template-columns: 1fr; }
   .tracking-map__canvas { height: 56vh; }
 }
+
+/* Revenue dashboards (W-FEAT-9): warm, low-saturation series tones, ample
+   whitespace, explicit gap states — no fabricated visual density. */
+
+.revenue-subheading { margin: 40px 0 18px; }
+.revenue-controls { margin-bottom: 14px; }
+.revenue-inline-button { width: auto; }
+.revenue-gap-banner { margin: 26px 0 8px; }
+.revenue-gap-banner p { margin: 0 0 8px; }
+.revenue-gap-banner p:last-child { margin-bottom: 0; }
+
+.revenue-card-grid { margin-bottom: 8px; }
+.revenue-card { min-height: 220px; }
+.revenue-card--empty { border-style: dashed; }
+.revenue-card__note { color: #9db8c0; font-size: 0.88rem; line-height: 1.55; }
+.revenue-card h3 { margin-top: 8px; }
+
+.revenue-totals { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.revenue-table { margin-bottom: 8px; }
+.revenue-bar-cell { min-width: 240px; }
+
+.provenance-note { margin: 14px 0 22px; color: #8fb0ba; font-size: 0.78rem; overflow-wrap: anywhere; }
+.provenance-note code { color: #d9c08a; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.76rem; }
+
+/* Monthly series chart: warm sand vs muted terracotta on the existing deep
+   ground; failed buckets are outlined gaps, never zero-height bars. */
+.series-chart { display: flex; align-items: stretch; gap: 10px; height: 220px; padding: 18px 14px 8px; border: 1px solid rgba(203, 231, 235, 0.19); background: rgba(7, 28, 39, 0.6); }
+.series-chart__column { flex: 1; min-width: 0; display: flex; align-items: flex-end; justify-content: center; gap: 3px; position: relative; padding-bottom: 26px; }
+.series-chart__bar { display: block; width: 34%; max-width: 34px; border-radius: 2px 2px 0 0; }
+.series-chart__bar--standard { background: rgba(233, 196, 106, 0.55); border: 1px solid rgba(233, 196, 106, 0.75); }
+.series-chart__bar--charged { background: rgba(240, 165, 138, 0.5); border: 1px solid rgba(240, 165, 138, 0.7); }
+.series-chart__gap { align-self: center; padding: 4px 8px; border: 1px dashed rgba(240, 183, 107, 0.6); color: #eac674; font-size: 0.68rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.series-chart__label { position: absolute; bottom: 4px; left: 0; right: 0; color: #8fb0ba; font-size: 0.72rem; text-align: center; }
+
+.legend-dot--standard { background: rgba(233, 196, 106, 0.7); }
+.legend-dot--charged { background: rgba(240, 165, 138, 0.65); }
+
+/* Route-level fare comparison bars */
+.bar-pair { display: grid; gap: 4px; }
+.bar-pair__label { color: #8fb0ba; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+.bar-pair__track { display: flex; align-items: center; gap: 8px; }
+.bar-pair__bar { display: inline-block; height: 10px; min-width: 2px; border-radius: 2px; }
+.bar-pair__bar--primary { background: rgba(233, 196, 106, 0.55); }
+.bar-pair__bar--secondary { background: rgba(240, 165, 138, 0.5); }
+.bar-pair__value { color: #b9cfd6; font-size: 0.78rem; white-space: nowrap; }
+
+.receipt-lookup { margin-top: 44px; padding-top: 8px; border-top: 1px solid rgba(203, 231, 235, 0.14); }
+.revenue-audit-panel { margin-top: 30px; }
+
+.status-chip--charged { color: #9be2b8; border-color: rgba(114, 214, 167, 0.5); }
+.status-chip--exempt { color: #e9c46a; border-color: rgba(233, 196, 106, 0.5); }
+.status-chip--not_applicable, .status-chip--unrated { color: #9aabb2; border-color: rgba(154, 171, 178, 0.5); }
+.status-chip--active { color: #9be2b8; border-color: rgba(114, 214, 167, 0.5); }
+.status-chip--draft { color: #e9c46a; border-color: rgba(233, 196, 106, 0.5); }
+.status-chip--retired { color: #9aabb2; border-color: rgba(154, 171, 178, 0.5); }
+.status-chip--paid { color: #9be2b8; border-color: rgba(114, 214, 167, 0.5); }
+.status-chip--refunded { color: #f0b76b; border-color: rgba(240, 183, 107, 0.5); }
+
+@media (max-width: 700px) {
+  .revenue-totals { grid-template-columns: 1fr; }
+  .series-chart { height: 180px; gap: 6px; }
+}
