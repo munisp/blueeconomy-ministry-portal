@@ -6,7 +6,7 @@ import { ApprovalQueuePage } from "./ApprovalQueuePage";
 import { ApprovalDetailPage } from "./ApprovalDetailPage";
 import { loadRuntimeConfiguration, type PortalRuntimeConfiguration, type ServiceRuntimeConfiguration } from "./runtime-config";
 import { initTelemetry } from "./telemetry";
-import { heldClearance, heldRoles, isApprover } from "./roles";
+import { heldClearance, heldRoles, isApprover, isSarReader, isStatsReader, SAR_READER_ROLES, STATS_READER_ROLES } from "./roles";
 import { isRevenueReader } from "./revenue/revenue-model";
 import { RevenueOverviewPage } from "./revenue/RevenueOverviewPage";
 import { SubsidyPage } from "./revenue/SubsidyPage";
@@ -14,6 +14,7 @@ import { SettlementPage } from "./revenue/SettlementPage";
 import { AssessmentPage } from "./revenue/AssessmentPage";
 import { isGeoReader, type Classification } from "./tracking/geo-model";
 import { navigateTo, routeHref, useHashRoute, type Route } from "./router";
+import { resolveSarConsoleEndpoints, resolveStatisticsEndpoints, SAR_API_URL_ENV, STATISTICS_API_URL_ENV } from "./endpoint-config";
 
 // The map engines (Cesium, MapLibre) and the GeoLibre embed are heavy and
 // route-scoped: they load only when the operator navigates to the console,
@@ -22,6 +23,8 @@ import { navigateTo, routeHref, useHashRoute, type Route } from "./router";
 const TrackingPage = lazy(() => import("./tracking/TrackingPage").then((module) => ({ default: module.TrackingPage })));
 const TrackingAccessNotice = lazy(() => import("./tracking/TrackingPage").then((module) => ({ default: module.TrackingAccessNotice })));
 const GeoLibrePage = lazy(() => import("./tracking/GeoLibrePage").then((module) => ({ default: module.GeoLibrePage })));
+const SarConsolePage = lazy(() => import("./sar/SarConsolePage").then((module) => ({ default: module.SarConsolePage })));
+const StatisticsPage = lazy(() => import("./stats/StatisticsPage").then((module) => ({ default: module.StatisticsPage })));
 import { probeService, type ServiceProbeResult } from "./service-client";
 
 const RUNTIME_CONFIGURATION_URL = "/platform-config.json";
@@ -123,12 +126,15 @@ export default function App() {
 
 function SideNav({ route }: { route: Route }) {
   const approvalsActive = route.name === "approvals" || route.name === "approval-detail";
+  const sarActive = route.name === "sar" || route.name === "sar-case";
   return (
     <nav className="side-nav" aria-label="Portal sections">
       <a className={route.name === "overview" ? "side-nav__link side-nav__link--active" : "side-nav__link"} href={routeHref({ name: "overview" })}>Overview</a>
       <a className={approvalsActive ? "side-nav__link side-nav__link--active" : "side-nav__link"} href={routeHref({ name: "approvals" })}>Approval queue</a>
       <a className={route.name === "tracking" ? "side-nav__link side-nav__link--active" : "side-nav__link"} href={routeHref({ name: "tracking" })}>Vessel tracking</a>
       <a className={route.name === "geolibre" ? "side-nav__link side-nav__link--active" : "side-nav__link"} href={routeHref({ name: "geolibre" })}>GeoLibre analysis</a>
+      <a className={sarActive ? "side-nav__link side-nav__link--active" : "side-nav__link"} href={routeHref({ name: "sar" })}>SAR console</a>
+      <a className={route.name === "statistics" ? "side-nav__link side-nav__link--active" : "side-nav__link"} href={routeHref({ name: "statistics" })}>Statistics</a>
       <a className={route.name === "revenue" ? "side-nav__link side-nav__link--active" : "side-nav__link"} href={routeHref({ name: "revenue" })}>Revenue overview</a>
       <a className={route.name === "revenue-subsidy" ? "side-nav__link side-nav__link--active" : "side-nav__link"} href={routeHref({ name: "revenue-subsidy" })}>Fare subsidies</a>
       <a className={route.name === "revenue-settlements" ? "side-nav__link side-nav__link--active" : "side-nav__link"} href={routeHref({ name: "revenue-settlements" })}>Settlements</a>
@@ -182,6 +188,43 @@ function RoutedContent({ route, state, token, approver, roles, clearance, onSign
     return (
       <Suspense fallback={<MapLoadingNotice label="Loading the GeoLibre analysis panel" />}>
         <GeoLibrePage configuration={state.configuration.geospatial} />
+      </Suspense>
+    );
+  }
+  if (route.name === "sar" || route.name === "sar-case") {
+    const sarEndpoints = resolveSarConsoleEndpoints();
+    if (!sarEndpoints.ok) {
+      return <EndpointNotConfigured title="SAR situation console" error={sarEndpoints.error} envName={SAR_API_URL_ENV} />;
+    }
+    return (
+      <Suspense fallback={<MapLoadingNotice label="Loading the SAR situation console" />}>
+        {isSarReader(roles) ? (
+          <SarConsolePage
+            endpoints={sarEndpoints.endpoints}
+            token={token}
+            selectedCaseId={route.name === "sar-case" ? route.caseId : null}
+            onOpenCase={(caseId) => navigateTo({ name: "sar-case", caseId })}
+            onCloseCase={() => navigateTo({ name: "sar" })}
+            onUnauthorized={onUnauthorized}
+          />
+        ) : (
+          <RoleAccessNotice surface="SAR situation console" requiredRoles={SAR_READER_ROLES} />
+        )}
+      </Suspense>
+    );
+  }
+  if (route.name === "statistics") {
+    const statsEndpoints = resolveStatisticsEndpoints();
+    if (!statsEndpoints.ok) {
+      return <EndpointNotConfigured title="Port & blue-economy statistics" error={statsEndpoints.error} envName={STATISTICS_API_URL_ENV} />;
+    }
+    return (
+      <Suspense fallback={<MapLoadingNotice label="Loading the statistics dashboard" />}>
+        {isStatsReader(roles) ? (
+          <StatisticsPage endpoints={statsEndpoints.endpoints} token={token} onUnauthorized={onUnauthorized} />
+        ) : (
+          <RoleAccessNotice surface="port & blue-economy statistics dashboard" requiredRoles={STATS_READER_ROLES} />
+        )}
       </Suspense>
     );
   }
@@ -260,12 +303,36 @@ function TrackingNotConfigured() {
   );
 }
 
+// EndpointNotConfigured is the fail-closed state for a console whose
+// VITE_* endpoint the deployment did not supply: a clear configuration
+// error, never a substituted default endpoint.
+function EndpointNotConfigured({ title, error, envName }: { title: string; error: string; envName: string }) {
+  return (
+    <section className="empty-state empty-state--alert" role="alert">
+      <p className="eyebrow">Console not configured</p>
+      <h2>The deployment has not wired the {title}</h2>
+      <p>The build-time environment variable <code>{envName}</code> is missing or invalid, so there is no approved endpoint to render. The portal does not substitute any default endpoint or cached data.</p>
+      <pre>{sanitiseDiagnostic(error)}</pre>
+    </section>
+  );
+}
+
 function RevenueNotConfigured() {
   return (
     <section className="empty-state" aria-live="polite">
       <p className="eyebrow">Revenue integration not configured</p>
       <h2>The deployment has not wired the revenue dashboards</h2>
       <p>The runtime configuration carries no <code>revenue</code> section, so there are no approved ferry, tariff or port-interoperability endpoints to read. The portal does not substitute any default endpoint or cached revenue figures.</p>
+    </section>
+  );
+}
+
+function RoleAccessNotice({ surface, requiredRoles }: { surface: string; requiredRoles: readonly string[] }) {
+  return (
+    <section className="empty-state empty-state--alert" role="alert">
+      <p className="eyebrow">Insufficient role</p>
+      <h2>Your account cannot read the {surface}</h2>
+      <p>This surface requires one of the recorded role claims: {requiredRoles.map((role) => <code key={role}>{role} </code>)}. The backend enforces this independently; the portal declines to render data your session is not authorised to read.</p>
     </section>
   );
 }
