@@ -47,6 +47,24 @@ export function isApprover(roles: Set<string>): boolean {
   return APPROVER_ROLES.some((role) => roles.has(role));
 }
 
+// SAR reader roles mirror the maritime-intelligence read policy
+// (internal/isr/access.go sarReaderRoles): read-only console access plus
+// the operational SAR roles and auditor. The backend re-enforces role and
+// per-record clearance authoritatively.
+export const SAR_READER_ROLES: readonly string[] = ["sar-watchkeeper", "sar-coordinator", "sar-resourcer", "sar-observer", "auditor"];
+
+export function isSarReader(roles: ReadonlySet<string>): boolean {
+  return SAR_READER_ROLES.some((role) => roles.has(role));
+}
+
+// STATS_READER_ROLES mirrors the data-platform statistics API requirement
+// (stats_api.py REQUIRED_ROLE = "stats-reader").
+export const STATS_READER_ROLES: readonly string[] = ["stats-reader"];
+
+export function isStatsReader(roles: ReadonlySet<string>): boolean {
+  return STATS_READER_ROLES.some((role) => roles.has(role));
+}
+
 // heldClearance reads the geo clearance-ladder claim ("clearance") asserted
 // by the identity authority, matching the geo-service claim mapping
 // (internal/auth: an absent claim defaults to PUBLIC, the least-restrictive

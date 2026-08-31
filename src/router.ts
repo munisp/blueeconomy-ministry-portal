@@ -9,12 +9,19 @@ export type Route =
   | { name: "approval-detail"; id: string }
   | { name: "tracking" }
   | { name: "geolibre" }
+  | { name: "sar" }
+  | { name: "sar-case"; caseId: string }
+  | { name: "statistics" }
   | { name: "revenue" }
   | { name: "revenue-subsidy" }
   | { name: "revenue-settlements" }
   | { name: "revenue-assessments" };
 
 const UUID_PATTERN = /^[0-9a-fA-F-]{36}$/;
+// SAR case identifiers are producer-assigned (e.g. "sar-000001"), not
+// UUIDs; the detail route accepts a bounded slug and the backend remains
+// the authority on existence (404 surfaces truthfully).
+const SAR_CASE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{1,63}$/;
 
 // parseRoute maps a location hash onto the portal route table. Unknown
 // hashes fall back to the overview; a malformed approval id also falls back
@@ -33,6 +40,15 @@ export function parseRoute(hash: string): Route {
   }
   if (segments.length === 1 && segments[0] === "geolibre") {
     return { name: "geolibre" };
+  }
+  if (segments.length === 1 && segments[0] === "sar") {
+    return { name: "sar" };
+  }
+  if (segments.length === 2 && segments[0] === "sar" && SAR_CASE_ID_PATTERN.test(segments[1])) {
+    return { name: "sar-case", caseId: segments[1] };
+  }
+  if (segments.length === 1 && segments[0] === "statistics") {
+    return { name: "statistics" };
   }
   if (segments.length === 1 && segments[0] === "revenue") {
     return { name: "revenue" };
@@ -64,6 +80,12 @@ export function routeHref(route: Route): string {
       return "#/tracking";
     case "geolibre":
       return "#/geolibre";
+    case "sar":
+      return "#/sar";
+    case "sar-case":
+      return `#/sar/${route.caseId}`;
+    case "statistics":
+      return "#/statistics";
     case "revenue":
       return "#/revenue";
     case "revenue-subsidy":
