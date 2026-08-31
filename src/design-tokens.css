@@ -1,0 +1,24 @@
+/*
+ * BlueEconomy shared design tokens (WP-9 alignment)
+ * Warm, low-saturation palette — no blue-purple gradients.
+ * Anchors shared across the three web apps:
+ *   singlewindow:  ink #0A1628, accent #D4A017, success #006400
+ *   ministry:      ink #071d2a, accent #e9c46a / #7de2dc
+ *   beneficiary:   ink #24333c, accent #8a3434
+ * Apps map these semantic tokens to their local values — no visual change.
+ */
+:root {
+  --be-surface: #071d2a;
+  --be-surface-raised: #0b2632;
+  --be-ink: #eaf2f5;
+  --be-ink-muted: #b6ccd3;
+  --be-accent: #e9c46a;
+  --be-accent-strong: #7de2dc;
+  --be-success: #72d6a7;
+  --be-warning: #e9c46a;
+  --be-danger: #e07a5f;
+  --be-border: rgba(210, 234, 239, 0.22);
+  --be-radius: 12px;
+  --be-space-unit: 8px;
+  --be-font-body: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}

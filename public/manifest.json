@@ -1,0 +1,19 @@
+{
+  "name": "BlueEconomy Ministry Portal",
+  "short_name": "Ministry",
+  "description": "Ministry administration console for the Blue Economy platform — onboarding governance and environment configuration.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#071d2a",
+  "theme_color": "#071d2a",
+  "orientation": "any",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["government", "business"],
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "id": "gov.blueeconomy.ministry-portal"
+}
