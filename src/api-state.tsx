@@ -52,6 +52,59 @@ export function classifyError(error: unknown): ClassifiedError {
   };
 }
 
+// ServiceErrorShape is the common error contract of the portal's typed API
+// clients (Administration/Geo/SAR/Stats): a truthful kind and the observed
+// HTTP status (null for network failures).
+interface ServiceErrorShape {
+  kind: string;
+  status: number | null;
+  message: string;
+}
+
+type ServiceErrorConstructor<T extends Error & ServiceErrorShape> = new (...args: never[]) => T;
+
+// classifyServiceError generalises classifyError to any of the portal's
+// typed API clients: 401 routes to the sign-in redirect, 403 is an honest
+// "insufficient role/clearance" message, network failures offer a retry.
+export function classifyServiceError<T extends Error & ServiceErrorShape>(error: unknown, errorType: ServiceErrorConstructor<T>, serviceName: string): ClassifiedError {
+  if (error instanceof errorType) {
+    if (error.status === 401) {
+      return {
+        title: "Session expired",
+        detail: `The ${serviceName} rejected the session token (HTTP 401). Redirecting to the approved identity authority for a fresh sign-in.`,
+        retryable: false,
+        unauthorized: true,
+      };
+    }
+    if (error.status === 403) {
+      return {
+        title: "Insufficient role or clearance",
+        detail: `The ${serviceName} denied the call (HTTP 403). The recorded identity does not hold the role claim or clearance this surface requires; the backend remains the authoritative enforcer. ${error.message}`,
+        retryable: false,
+        unauthorized: false,
+      };
+    }
+    if (error.kind === "network") {
+      return { title: `${serviceName} unreachable`, detail: error.message, retryable: true, unauthorized: false };
+    }
+    if (error.kind === "contract") {
+      return {
+        title: `${serviceName} contract violation`,
+        detail: `The ${serviceName} returned a response outside its published contract; nothing was substituted. ${error.message}`,
+        retryable: true,
+        unauthorized: false,
+      };
+    }
+    return { title: `${serviceName} error`, detail: error.message, retryable: true, unauthorized: false };
+  }
+  return {
+    title: "Unexpected portal error",
+    detail: error instanceof Error ? error.message : "The action failed without a diagnostic.",
+    retryable: true,
+    unauthorized: false,
+  };
+}
+
 interface ErrorNoticeProperties {
   error: ClassifiedError;
   onRetry?: () => void;
