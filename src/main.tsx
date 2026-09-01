@@ -1,8 +1,11 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import { registerServiceWorkerOnLoad } from "./sw-registration";
 import "./design-tokens.css";
 import "./styles.css";
+
+registerServiceWorkerOnLoad();
 
 const container = document.getElementById("root");
 if (container === null) {
