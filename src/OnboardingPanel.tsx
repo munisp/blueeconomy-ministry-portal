@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { submitOnboardingRequest } from "./administration-client";
-import type { AdministrationRuntimeConfiguration } from "./runtime-config";
+import { isAdministrationOnboardingConfigured, type AdministrationRuntimeConfiguration } from "./runtime-config";
 
 interface Properties {
   configuration: AdministrationRuntimeConfiguration;
@@ -8,6 +8,27 @@ interface Properties {
 }
 
 export function OnboardingPanel({ configuration, token }: Properties) {
+  if (!isAdministrationOnboardingConfigured(configuration)) {
+    return (
+      <section className="onboarding-section" aria-live="polite">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">Central administration</p>
+            <h2>Administration onboarding is not configured for this deployment</h2>
+          </div>
+        </div>
+        <p className="section-note">
+          The deployment-provided administration settings still contain placeholder values, so no onboarding
+          endpoint is contacted and no request can be submitted from this portal. Contact the platform
+          operator to publish an approved onboarding API URL and organization identifier.
+        </p>
+      </section>
+    );
+  }
+  return <ConfiguredOnboardingPanel configuration={configuration} token={token} />;
+}
+
+function ConfiguredOnboardingPanel({ configuration, token }: Properties) {
   const [email, setEmail] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");

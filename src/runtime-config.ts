@@ -26,6 +26,19 @@ export interface PortalRuntimeConfiguration {
   administration: AdministrationRuntimeConfiguration;
 }
 
+const PLACEHOLDER_VALUE_PATTERN = /placeholder|not[-_ ]?yet|to[-_ ]?be[-_ ]?configured|changeme|example\.(com|org|invalid)/i;
+
+/**
+ * Returns true only when the administration block carries real deployment
+ * values. Placeholder URLs / organization ids must never receive traffic:
+ * firing an authenticated request (bearer token + PII) at a placeholder
+ * endpoint is a data-leak and produces meaningless HTTP errors.
+ */
+export function isAdministrationOnboardingConfigured(administration: AdministrationRuntimeConfiguration): boolean {
+  return !PLACEHOLDER_VALUE_PATTERN.test(administration.onboarding_api_url)
+    && !PLACEHOLDER_VALUE_PATTERN.test(administration.organization_id);
+}
+
 export async function loadRuntimeConfiguration(url: string): Promise<PortalRuntimeConfiguration> {
   const response = await fetch(url, { cache: "no-store", credentials: "same-origin" });
   if (!response.ok) {
