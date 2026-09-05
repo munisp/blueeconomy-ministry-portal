@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactElement } from "react";
 import type { User, UserManager } from "oidc-client-ts";
-import { accessToken, completeAuthenticationCallback, createUserManager } from "./auth";
+import { accessToken, classifyAuthenticationError, completeAuthenticationCallback, createUserManager } from "./auth";
 import { OnboardingPanel } from "./OnboardingPanel";
 import { loadRuntimeConfiguration, type PortalRuntimeConfiguration, type ServiceRuntimeConfiguration } from "./runtime-config";
 import { probeService, type ServiceProbeResult } from "./service-client";
@@ -22,6 +22,7 @@ const RUNTIME_CONFIGURATION_URL = "/platform-config.json";
 type ApplicationState =
   | { kind: "loading" }
   | { kind: "configuration-error"; error: string }
+  | { kind: "authentication-error"; manager: UserManager; error: string }
   | { kind: "ready"; configuration: PortalRuntimeConfiguration; manager: UserManager; user: User | null };
 
 interface NavigationItem {
@@ -63,6 +64,34 @@ export default function App() {
   const [probeResults, setProbeResults] = useState<Record<string, ServiceProbeResult>>({});
   const [probeInFlight, setProbeInFlight] = useState<string | null>(null);
   const path = useHashRoute();
+  const [sessionExpiring, setSessionExpiring] = useState(false);
+
+  // Token lifecycle: surface silent-renew outcomes instead of letting the
+  // session silently lapse into "Authentication required".
+  useEffect(() => {
+    if (state.kind !== "ready") {
+      return;
+    }
+    const { manager } = state;
+    const onUserLoaded = (user: User) => {
+      setSessionExpiring(false);
+      setState((current) => (current.kind === "ready" ? { ...current, user } : current));
+    };
+    const onExpiring = () => setSessionExpiring(true);
+    const onRenewError = (error: unknown) => {
+      const message = error instanceof Error ? error.message : "automatic session renewal failed";
+      setSessionExpiring(false);
+      setState({ kind: "authentication-error", manager, error: message });
+    };
+    manager.events.addUserLoaded(onUserLoaded);
+    manager.events.addAccessTokenExpiring(onExpiring);
+    manager.events.addSilentRenewError(onRenewError);
+    return () => {
+      manager.events.removeUserLoaded(onUserLoaded);
+      manager.events.removeAccessTokenExpiring(onExpiring);
+      manager.events.removeSilentRenewError(onRenewError);
+    };
+  }, [state.kind === "ready" ? state.manager : null]);
 
   useEffect(() => {
     let active = true;
@@ -105,10 +134,11 @@ export default function App() {
   const dashboardAllowed = hasAnyRole(userRoles, DASHBOARD_ROLES);
 
   async function startSignIn(): Promise<void> {
-    if (state.kind !== "ready") {
-      return;
+    if (state.kind === "ready") {
+      await state.manager.signinRedirect();
+    } else if (state.kind === "authentication-error") {
+      await state.manager.signinRedirect();
     }
-    await state.manager.signinRedirect();
   }
 
   async function startSignOut(): Promise<void> {
@@ -203,15 +233,33 @@ export default function App() {
 
       {state.kind === "loading" && <LoadingState />}
       {state.kind === "configuration-error" && <ConfigurationError error={state.error} />}
+      {state.kind === "authentication-error" && (
+        <SessionExpired error={state.error} onSignIn={() => void startSignIn()} />
+      )}
+      {state.kind === "ready" && sessionExpiring && <SessionExpiringNotice />}
       {state.kind === "ready" && renderActivePage()}
     </main>
   );
 }
 
-async function bootstrap(): Promise<Extract<ApplicationState, { kind: "ready" }>> {
+async function bootstrap(): Promise<ApplicationState> {
+  // Only failures of the configuration load itself are configuration errors.
   const configuration = await loadRuntimeConfiguration(RUNTIME_CONFIGURATION_URL);
   const manager = createUserManager(configuration.oidc);
-  const callbackUser = await completeAuthenticationCallback(manager);
+  let callbackUser: User | null = null;
+  try {
+    callbackUser = await completeAuthenticationCallback(manager);
+  } catch (error: unknown) {
+    // A stale / replayed callback ("No matching state found in storage" and
+    // similar) is an expired sign-in session, not a broken deployment. The
+    // URL has already been cleaned by completeAuthenticationCallback, so the
+    // user can simply start a fresh redirect.
+    const message = error instanceof Error ? error.message : "sign-in callback failed";
+    if (classifyAuthenticationError(error) === "configuration") {
+      throw error instanceof Error ? error : new Error(message);
+    }
+    return { kind: "authentication-error", manager, error: message };
+  }
   const user = callbackUser ?? await manager.getUser();
   return { kind: "ready", configuration, manager, user };
 }
@@ -233,6 +281,27 @@ function ConfigurationError({ error }: { error: string }) {
       <h2>Approved environment configuration is required</h2>
       <p>The portal did not load a valid runtime configuration. No substitute endpoint or local session has been created.</p>
       <pre>{error}</pre>
+    </section>
+  );
+}
+
+function SessionExpired({ error, onSignIn }: { error: string; onSignIn: () => void }) {
+  return (
+    <section className="empty-state empty-state--alert" role="alert">
+      <p className="eyebrow">Session ended</p>
+      <h2>Sign-in session expired</h2>
+      <p>The sign-in attempt could not be resumed. This is usually a stale or replayed sign-in link; starting a fresh sign-in resolves it.</p>
+      <pre>{error}</pre>
+      <button className="button" onClick={onSignIn}>Sign in again</button>
+    </section>
+  );
+}
+
+function SessionExpiringNotice() {
+  return (
+    <section className="empty-state" aria-live="polite">
+      <p className="eyebrow">Session renewal</p>
+      <p>Your session is about to expire and is being renewed automatically.</p>
     </section>
   );
 }
