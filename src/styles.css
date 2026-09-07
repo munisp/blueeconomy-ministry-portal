@@ -109,6 +109,7 @@ h3 { margin: 18px 0 24px; font-size: 1.6rem; line-height: 1.08; }
 .status-pill--danger { color: #f3abab; background: rgba(239, 143, 143, 0.14); }
 
 .briefing-panel { max-width: 760px; }
+.period-selector { display: flex; gap: 8px; margin-bottom: 12px; }
 .briefing-panel > p { color: #b6ccd3; line-height: 1.6; }
 .briefing-evidence { margin-top: 18px; padding: 14px 16px; border-left: 3px solid #72d6a7; background: rgba(114, 214, 167, 0.08); color: #c9e8d8; font-size: 0.88rem; overflow-wrap: anywhere; }
 

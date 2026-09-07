@@ -5,7 +5,7 @@ import { OnboardingPanel } from "./OnboardingPanel";
 import { loadRuntimeConfiguration, type PortalRuntimeConfiguration, type ServiceRuntimeConfiguration } from "./runtime-config";
 import { probeService, type ServiceProbeResult } from "./service-client";
 import { resolveDashboardApiBase } from "./api-client";
-import { DASHBOARD_ROLES, extractRoles, hasAnyRole } from "./roles";
+import { DASHBOARD_ROLES, PLATFORM_ADMIN_ROLE, extractRoles, hasAnyRole } from "./roles";
 import { InstallPrompt } from "./InstallPrompt";
 import { ExecutiveDashboardPage } from "./pages/ExecutiveDashboardPage";
 import { OperationalKpisPage } from "./pages/OperationalKpisPage";
@@ -15,6 +15,7 @@ import { SlaBreachPage } from "./pages/SlaBreachPage";
 import { CustomsNrsPage } from "./pages/CustomsNrsPage";
 import { MinisterialKpiPackPage } from "./pages/MinisterialKpiPackPage";
 import { WeeklyBriefingPage } from "./pages/WeeklyBriefingPage";
+import { PortPerformancePage } from "./pages/PortPerformancePage";
 import type { DashboardPageProps } from "./pages/props";
 
 const RUNTIME_CONFIGURATION_URL = "/platform-config.json";
@@ -29,6 +30,8 @@ interface NavigationItem {
   path: string;
   label: string;
   requiresDashboardRole: boolean;
+  /** Additional roles required beyond the dashboard role (e.g. admin-only sections). */
+  requiredRoles?: readonly string[];
   render: (properties: DashboardPageProps) => ReactElement;
 }
 
@@ -42,6 +45,13 @@ const NAVIGATION: NavigationItem[] = [
   { path: "sla", label: "SLA breaches", requiresDashboardRole: true, render: (p) => <SlaBreachPage {...p} /> },
   { path: "customs", label: "Customs / NCS–NRS", requiresDashboardRole: true, render: (p) => <CustomsNrsPage {...p} /> },
   { path: "briefing", label: "Weekly briefing", requiresDashboardRole: true, render: (p) => <WeeklyBriefingPage {...p} /> },
+  {
+    path: "port-performance",
+    label: "Port performance",
+    requiresDashboardRole: true,
+    requiredRoles: [PLATFORM_ADMIN_ROLE],
+    render: (p) => <PortPerformancePage {...p} />,
+  },
 ];
 
 function currentPath(): string {
@@ -182,6 +192,9 @@ export default function App() {
     if (!dashboardAllowed) {
       return <RoleRequired roles={DASHBOARD_ROLES} observed={userRoles} />;
     }
+    if (activeItem.requiredRoles !== undefined && !hasAnyRole(userRoles, activeItem.requiredRoles)) {
+      return <RoleRequired roles={activeItem.requiredRoles} observed={userRoles} />;
+    }
     if (dashboardApiBase === null) {
       return (
         <section className="empty-state empty-state--alert" role="alert">
@@ -215,7 +228,8 @@ export default function App() {
       {state.kind === "ready" && (
         <nav className="portal-nav" aria-label="Portal sections">
           {NAVIGATION.map((item) => {
-            const locked = item.requiresDashboardRole && (!authenticated || !dashboardAllowed);
+            const roleLocked = item.requiredRoles !== undefined && !hasAnyRole(userRoles, item.requiredRoles);
+            const locked = (item.requiresDashboardRole && (!authenticated || !dashboardAllowed)) || (authenticated && roleLocked);
             return (
               <a
                 key={item.path}
