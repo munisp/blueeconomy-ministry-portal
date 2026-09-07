@@ -16,6 +16,8 @@ export const KPI_ENDPOINTS = {
   slaBreaches: "/v1/sla/breaches",
   customsSummary: "/v1/customs/summary",
   weeklyBriefing: "/v1/briefings/weekly",
+  portPerformanceReport: "/v1/port-performance/report",
+  portPerformanceReportPdf: "/v1/port-performance/report.pdf",
 } as const;
 
 export interface MinisterialKpiPack {
@@ -279,4 +281,137 @@ export function fetchCustomsSummary(baseUrl: string, token: string): Promise<Cus
 
 export function fetchWeeklyBriefing(baseUrl: string, token: string): Promise<SignedBlob> {
   return apiGetSignedBlob(baseUrl, KPI_ENDPOINTS.weeklyBriefing, token);
+}
+
+/* ------------------------------------------------------------------------ */
+/* Port performance report (NPA-style)                                      */
+/* ------------------------------------------------------------------------ */
+
+export type PortPerformancePeriod = "weekly" | "monthly" | "quarterly";
+
+export const PORT_PERFORMANCE_PERIODS: readonly PortPerformancePeriod[] = ["weekly", "monthly", "quarterly"];
+
+/**
+ * A single port-performance indicator. `source` names the real backend data
+ * query the figure is aggregated from; `value` is null when that source
+ * returned no records for the period (the UI must render an explicit
+ * "no data" state, never a fabricated figure). `delta_pct` is the
+ * period-over-period change and is null when no comparable previous period
+ * exists.
+ */
+export interface PortPerformanceMetric {
+  source: string;
+  value: number | null;
+  delta_pct: number | null;
+  unit: string;
+}
+
+export interface PortPerformanceMetrics {
+  cargo_throughput_tonnes: PortPerformanceMetric;
+  vessel_calls: PortPerformanceMetric;
+  teu_in: PortPerformanceMetric;
+  teu_out: PortPerformanceMetric;
+  transshipment_volume_teu: PortPerformanceMetric;
+  export_tonnes: PortPerformanceMetric;
+  import_tonnes: PortPerformanceMetric;
+}
+
+export interface PortPerformanceReport {
+  generated_at: string;
+  period: PortPerformancePeriod;
+  period_start: string;
+  period_end: string;
+  metrics: PortPerformanceMetrics;
+}
+
+export const PORT_PERFORMANCE_METRIC_LABELS: Record<keyof PortPerformanceMetrics, string> = {
+  cargo_throughput_tonnes: "Total cargo throughput",
+  vessel_calls: "Vessel calls",
+  teu_in: "TEU in",
+  teu_out: "TEU out",
+  transshipment_volume_teu: "Transshipment volume",
+  export_tonnes: "Export tonnage",
+  import_tonnes: "Import tonnage",
+};
+
+function nullableNumber(record: Record<string, unknown>, key: string): number | null {
+  const value = record[key];
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`${key} must be a finite number or null`);
+  }
+  return value;
+}
+
+function validatePortPerformanceMetric(candidate: unknown, key: string): PortPerformanceMetric {
+  if (!isRecord(candidate)) {
+    throw new Error(`metrics.${key} must be an object`);
+  }
+  return {
+    source: requiredString(candidate, "source"),
+    value: nullableNumber(candidate, "value"),
+    delta_pct: nullableNumber(candidate, "delta_pct"),
+    unit: requiredString(candidate, "unit"),
+  };
+}
+
+export function validatePortPerformanceReport(candidate: unknown): PortPerformanceReport {
+  if (!isRecord(candidate)) {
+    throw new Error("port performance report must be an object");
+  }
+  const period = candidate.period;
+  if (period !== "weekly" && period !== "monthly" && period !== "quarterly") {
+    throw new Error("period must be weekly, monthly or quarterly");
+  }
+  const reportPeriod: PortPerformancePeriod = period;
+  const metricsCandidate = candidate.metrics;
+  if (!isRecord(metricsCandidate)) {
+    throw new Error("metrics must be an object");
+  }
+  const metrics: PortPerformanceMetrics = {
+    cargo_throughput_tonnes: validatePortPerformanceMetric(metricsCandidate.cargo_throughput_tonnes, "cargo_throughput_tonnes"),
+    vessel_calls: validatePortPerformanceMetric(metricsCandidate.vessel_calls, "vessel_calls"),
+    teu_in: validatePortPerformanceMetric(metricsCandidate.teu_in, "teu_in"),
+    teu_out: validatePortPerformanceMetric(metricsCandidate.teu_out, "teu_out"),
+    transshipment_volume_teu: validatePortPerformanceMetric(metricsCandidate.transshipment_volume_teu, "transshipment_volume_teu"),
+    export_tonnes: validatePortPerformanceMetric(metricsCandidate.export_tonnes, "export_tonnes"),
+    import_tonnes: validatePortPerformanceMetric(metricsCandidate.import_tonnes, "import_tonnes"),
+  };
+  return {
+    generated_at: requiredString(candidate, "generated_at"),
+    period: reportPeriod,
+    period_start: requiredString(candidate, "period_start"),
+    period_end: requiredString(candidate, "period_end"),
+    metrics,
+  };
+}
+
+/**
+ * Export/import balance derived from the two real tonnage figures. Returns
+ * null when either leg has no data for the period — the UI renders an
+ * honest unavailable state rather than an arithmetic guess.
+ */
+export function exportImportBalanceTonnes(metrics: PortPerformanceMetrics): number | null {
+  if (metrics.export_tonnes.value === null || metrics.import_tonnes.value === null) {
+    return null;
+  }
+  return metrics.export_tonnes.value - metrics.import_tonnes.value;
+}
+
+export function fetchPortPerformanceReport(
+  baseUrl: string,
+  token: string,
+  period: PortPerformancePeriod,
+): Promise<PortPerformanceReport> {
+  return apiGet(baseUrl, `${KPI_ENDPOINTS.portPerformanceReport}?period=${period}`, token, validatePortPerformanceReport);
+}
+
+export function fetchPortPerformanceReportPdf(
+  baseUrl: string,
+  token: string,
+  period: PortPerformancePeriod,
+): Promise<SignedBlob> {
+  return apiGetSignedBlob(baseUrl, `${KPI_ENDPOINTS.portPerformanceReportPdf}?period=${period}`, token);
 }
