@@ -19,11 +19,24 @@ export interface AdministrationRuntimeConfiguration {
   allowed_roles: string[];
 }
 
+export interface GeospatialRuntimeConfiguration {
+  /**
+   * Optional map style/tile source. Either an HTTPS URL or a same-origin
+   * absolute path (proxied tiles). When absent the map renders vessel and
+   * incident data over a no-network reference grid with an explicit notice —
+   * no third-party tile host is assumed.
+   */
+  tile_style_url?: string;
+  /** Default viewport (micro-degree free, degrees) for the map pages. */
+  default_bbox?: { min_lon: number; min_lat: number; max_lon: number; max_lat: number };
+}
+
 export interface PortalRuntimeConfiguration {
   application_name: string;
   oidc: OidcRuntimeConfiguration;
   services: ServiceRuntimeConfiguration[];
   administration: AdministrationRuntimeConfiguration;
+  geospatial?: GeospatialRuntimeConfiguration;
 }
 
 const PLACEHOLDER_VALUE_PATTERN = /placeholder|not[-_ ]?yet|to[-_ ]?be[-_ ]?configured|changeme|example\.(com|org|invalid)/i;
@@ -104,7 +117,49 @@ export function validateRuntimeConfiguration(candidate: unknown): PortalRuntimeC
       required_roles: roles.map((role) => role.trim()),
     };
   });
-  return { application_name: applicationName, oidc, services, administration };
+  const configuration: PortalRuntimeConfiguration = { application_name: applicationName, oidc, services, administration };
+
+  const geospatialCandidate = candidate.geospatial;
+  if (geospatialCandidate !== undefined) {
+    if (!isRecord(geospatialCandidate)) {
+      throw new Error("geospatial must be an object when present");
+    }
+    const geospatial: GeospatialRuntimeConfiguration = {};
+    const tileStyleUrl = optionalText(geospatialCandidate, "tile_style_url");
+    if (tileStyleUrl !== undefined) {
+      if (tileStyleUrl.startsWith("/")) {
+        geospatial.tile_style_url = tileStyleUrl;
+      } else {
+        geospatial.tile_style_url = validateHttpsUrl(tileStyleUrl, "geospatial.tile_style_url");
+      }
+    }
+    const bboxCandidate = geospatialCandidate.default_bbox;
+    if (bboxCandidate !== undefined) {
+      if (!isRecord(bboxCandidate)) {
+        throw new Error("geospatial.default_bbox must be an object");
+      }
+      const bound = (key: string, min: number, max: number): number => {
+        const value = bboxCandidate[key];
+        if (typeof value !== "number" || !Number.isFinite(value) || value < min || value > max) {
+          throw new Error(`geospatial.default_bbox.${key} must be a number in [${min}, ${max}]`);
+        }
+        return value;
+      };
+      const bbox = {
+        min_lon: bound("min_lon", -180, 180),
+        min_lat: bound("min_lat", -90, 90),
+        max_lon: bound("max_lon", -180, 180),
+        max_lat: bound("max_lat", -90, 90),
+      };
+      if (bbox.min_lon >= bbox.max_lon || bbox.min_lat >= bbox.max_lat) {
+        throw new Error("geospatial.default_bbox min bounds must be below max bounds");
+      }
+      geospatial.default_bbox = bbox;
+    }
+    configuration.geospatial = geospatial;
+  }
+
+  return configuration;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
