@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { useApiData } from "../hooks/useApiData";
-import { fetchMinisterialKpiPack, fetchOperationalKpis } from "../kpi-client";
+import { fetchMinisterialKpiPack, fetchOperationalKpis, fetchRlQueuePolicyStatus } from "../kpi-client";
 import {
   DashboardFrame, DataTable, KpiCard, KpiGrid, StatusPill,
   formatNaira, formatNumber, formatPercent,
@@ -18,8 +18,14 @@ export function ExecutiveDashboardPage({ baseUrl, token }: DashboardPageProps) {
     () => (token === null ? Promise.reject(new Error("authentication required")) : fetchOperationalKpis(baseUrl, token)),
     [baseUrl, token],
   );
+  // Phase 18: RL queue-policy shadow status (honest untrained state).
+  const rlLoader = useCallback(
+    () => (token === null ? Promise.reject(new Error("authentication required")) : fetchRlQueuePolicyStatus(baseUrl, token)),
+    [baseUrl, token],
+  );
   const kpi = useApiData(token === null ? null : kpiLoader);
   const ops = useApiData(token === null ? null : opsLoader);
+  const rl = useApiData(token === null ? null : rlLoader);
 
   return (
     <section className="dashboard-section">
@@ -39,6 +45,36 @@ export function ExecutiveDashboardPage({ baseUrl, token }: DashboardPageProps) {
             <KpiCard label="SLA compliance" value={formatPercent(pack.sla_compliance_pct)} />
           </KpiGrid>
         )}
+      </DashboardFrame>
+      <h3>RL insights</h3>
+      <DashboardFrame state={rl.state} loadingLabel="Loading RL queue-policy status" onRetry={rl.reload}>
+        {(policy) =>
+          policy.trained ? (
+            <KpiGrid>
+              <KpiCard
+                label="Officer queue shadow policy"
+                value="Trained"
+                tone="success"
+                detail={`policy ${policy.policyVersion ?? "version not reported"} · advisory only, never auto-applied`}
+              />
+              <KpiCard
+                label="Off-policy evaluation (OPE)"
+                value={policy.opeScore === null ? "Not reported" : policy.opeScore.toFixed(3)}
+                detail="Offline evaluation score from the serving payload, when carried"
+              />
+              <KpiCard label="Surface" value={policy.surface} detail={policy.note} />
+            </KpiGrid>
+          ) : (
+            <div className="empty-state" role="status">
+              <p className="eyebrow">Policy not trained</p>
+              <h2>Officer queue shadow policy</h2>
+              <p>
+                {policy.note} No queue-order recommendation is shown or applied; the authoritative AEO/FIFO
+                officer queue remains in force.
+              </p>
+            </div>
+          )
+        }
       </DashboardFrame>
       <h3>Operational indicators</h3>
       <DashboardFrame state={ops.state} loadingLabel="Loading operational indicators" onRetry={ops.reload}>

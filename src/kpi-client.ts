@@ -18,6 +18,8 @@ export const KPI_ENDPOINTS = {
   weeklyBriefing: "/v1/briefings/weekly",
   portPerformanceReport: "/v1/port-performance/report",
   portPerformanceReportPdf: "/v1/port-performance/report.pdf",
+  // Phase 18: RL queue-policy shadow status (singlewindow honest endpoint)
+  rlQueuePolicyStatus: "/v1/rl/queue-policy/status",
 } as const;
 
 export interface MinisterialKpiPack {
@@ -414,4 +416,75 @@ export function fetchPortPerformanceReportPdf(
   period: PortPerformancePeriod,
 ): Promise<SignedBlob> {
   return apiGetSignedBlob(baseUrl, `${KPI_ENDPOINTS.portPerformanceReportPdf}?period=${period}`, token);
+}
+
+/* ------------------------------------------------------------------------ */
+/* RL queue-policy shadow status (Phase 18)                                  */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Honest status of the singlewindow RL queue-policy shadow surface, served
+ * by GET /v1/rl/queue-policy/status. "Untrained" is a first-class payload
+ * (trained:false), not an error — the card renders it like the congestion
+ * card's insufficient-history state. Transport failures and 503s surface
+ * as ApiError and render the error state (fail-closed).
+ */
+export interface RlQueuePolicyStatus {
+  surface: string;
+  trained: boolean;
+  policyVersion: string | null;
+  opeScore: number | null;
+  mode: "shadow" | null;
+  note: string;
+}
+
+function optionalNumber(record: Record<string, unknown>, key: string): number | null {
+  const value = record[key];
+  if (value === undefined || value === null) {
+    return null;
+  }
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`${key} must be a finite number when present`);
+  }
+  return value;
+}
+
+function optionalText(record: Record<string, unknown>, key: string): string | null {
+  const value = record[key];
+  if (value === undefined || value === null) {
+    return null;
+  }
+  if (typeof value !== "string") {
+    throw new Error(`${key} must be text when present`);
+  }
+  return value;
+}
+
+export function validateRlQueuePolicyStatus(candidate: unknown): RlQueuePolicyStatus {
+  if (!isRecord(candidate)) {
+    throw new Error("queue-policy status must be an object");
+  }
+  if (candidate.status !== "ok") {
+    throw new Error("queue-policy status must report status ok (down surfaces as an HTTP error)");
+  }
+  if (typeof candidate.trained !== "boolean") {
+    throw new Error("trained must be a boolean");
+  }
+  const mode = candidate.mode;
+  if (mode !== null && mode !== undefined && mode !== "shadow") {
+    // RL output is advisory only — a non-shadow mode is never displayed.
+    throw new Error('mode must be "shadow" or null');
+  }
+  return {
+    surface: requiredString(candidate, "surface"),
+    trained: candidate.trained,
+    policyVersion: optionalText(candidate, "policyVersion"),
+    opeScore: optionalNumber(candidate, "opeScore"),
+    mode: mode === "shadow" ? "shadow" : null,
+    note: requiredString(candidate, "note"),
+  };
+}
+
+export function fetchRlQueuePolicyStatus(baseUrl: string, token: string): Promise<RlQueuePolicyStatus> {
+  return apiGet(baseUrl, KPI_ENDPOINTS.rlQueuePolicyStatus, token, validateRlQueuePolicyStatus);
 }

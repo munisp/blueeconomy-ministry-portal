@@ -178,3 +178,67 @@ test("fetchWeeklyBriefing rejects a JWS envelope whose payload is not a PDF", as
     restore();
   }
 });
+
+/* Phase 18: RL queue-policy shadow status */
+import { fetchRlQueuePolicyStatus, validateRlQueuePolicyStatus } from "../src/kpi-client.ts";
+
+const TRAINED_STATUS = {
+  status: "ok",
+  surface: "officer-export-queue",
+  trained: true,
+  policyVersion: "queue-policy-v0.2.1",
+  opeScore: 0.77,
+  mode: "shadow",
+  note: "Shadow policy promoted — suggestions are advisory only.",
+};
+
+const UNTRAINED_STATUS = {
+  status: "ok",
+  surface: "officer-export-queue",
+  trained: false,
+  policyVersion: null,
+  opeScore: null,
+  mode: null,
+  note: "Policy not trained — no promoted queue policy in the ml-stack registry.",
+};
+
+test("accepts a trained queue-policy status with OPE score", () => {
+  assert.deepEqual(validateRlQueuePolicyStatus(TRAINED_STATUS), {
+    surface: "officer-export-queue",
+    trained: true,
+    policyVersion: "queue-policy-v0.2.1",
+    opeScore: 0.77,
+    mode: "shadow",
+    note: TRAINED_STATUS.note,
+  });
+});
+
+test("accepts the first-class untrained status", () => {
+  const parsed = validateRlQueuePolicyStatus(UNTRAINED_STATUS);
+  assert.equal(parsed.trained, false);
+  assert.equal(parsed.policyVersion, null);
+  assert.equal(parsed.opeScore, null);
+  assert.equal(parsed.mode, null);
+});
+
+test("rejects a non-shadow mode — RL output is advisory only", () => {
+  assert.throws(
+    () => validateRlQueuePolicyStatus({ ...TRAINED_STATUS, mode: "enforce" }),
+    /mode must be "shadow" or null/,
+  );
+});
+
+test("rejects a down payload — down must surface as an HTTP error, not data", () => {
+  assert.throws(() => validateRlQueuePolicyStatus({ ...UNTRAINED_STATUS, status: "down" }), /status ok/);
+});
+
+test("rejects a non-boolean trained flag", () => {
+  assert.throws(() => validateRlQueuePolicyStatus({ ...TRAINED_STATUS, trained: "yes" }), /trained must be a boolean/);
+});
+
+test("rejects a non-numeric OPE score when present", () => {
+  assert.throws(
+    () => validateRlQueuePolicyStatus({ ...TRAINED_STATUS, opeScore: "high" }),
+    /opeScore must be a finite number/,
+  );
+});
