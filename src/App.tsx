@@ -16,6 +16,12 @@ import { CustomsNrsPage } from "./pages/CustomsNrsPage";
 import { MinisterialKpiPackPage } from "./pages/MinisterialKpiPackPage";
 import { WeeklyBriefingPage } from "./pages/WeeklyBriefingPage";
 import { PortPerformancePage } from "./pages/PortPerformancePage";
+import { GeoHeatmapPage } from "./pages/GeoHeatmapPage";
+import { CongestionForecastPage } from "./pages/CongestionForecastPage";
+import { TransparencyPage } from "./pages/TransparencyPage";
+import { IncidentSarPage } from "./pages/IncidentSarPage";
+import { resolveGeoApiBase } from "./geo-client";
+import { LANGUAGE_LABELS, SUPPORTED_LANGUAGES, useTranslation, type TranslationKey } from "./i18n";
 import type { DashboardPageProps } from "./pages/props";
 
 const RUNTIME_CONFIGURATION_URL = "/platform-config.json";
@@ -28,7 +34,7 @@ type ApplicationState =
 
 interface NavigationItem {
   path: string;
-  label: string;
+  labelKey: TranslationKey;
   requiresDashboardRole: boolean;
   /** Additional roles required beyond the dashboard role (e.g. admin-only sections). */
   requiredRoles?: readonly string[];
@@ -36,22 +42,29 @@ interface NavigationItem {
 }
 
 const NAVIGATION: NavigationItem[] = [
-  { path: "administration", label: "Administration", requiresDashboardRole: false, render: () => <></> },
-  { path: "kpi-pack", label: "Ministerial KPI pack", requiresDashboardRole: true, render: (p) => <MinisterialKpiPackPage {...p} /> },
-  { path: "executive", label: "Executive", requiresDashboardRole: true, render: (p) => <ExecutiveDashboardPage {...p} /> },
-  { path: "operational", label: "Operational KPIs", requiresDashboardRole: true, render: (p) => <OperationalKpisPage {...p} /> },
-  { path: "trade", label: "Trade analytics", requiresDashboardRole: true, render: (p) => <TradeAnalyticsPage {...p} /> },
-  { path: "risk", label: "Risk model", requiresDashboardRole: true, render: (p) => <RiskModelPage {...p} /> },
-  { path: "sla", label: "SLA breaches", requiresDashboardRole: true, render: (p) => <SlaBreachPage {...p} /> },
-  { path: "customs", label: "Customs / NCS–NRS", requiresDashboardRole: true, render: (p) => <CustomsNrsPage {...p} /> },
-  { path: "briefing", label: "Weekly briefing", requiresDashboardRole: true, render: (p) => <WeeklyBriefingPage {...p} /> },
+  { path: "administration", labelKey: "nav.administration", requiresDashboardRole: false, render: () => <></> },
+  { path: "kpi-pack", labelKey: "nav.kpiPack", requiresDashboardRole: true, render: (p) => <MinisterialKpiPackPage {...p} /> },
+  { path: "executive", labelKey: "nav.executive", requiresDashboardRole: true, render: (p) => <ExecutiveDashboardPage {...p} /> },
+  { path: "operational", labelKey: "nav.operational", requiresDashboardRole: true, render: (p) => <OperationalKpisPage {...p} /> },
+  { path: "trade", labelKey: "nav.trade", requiresDashboardRole: true, render: (p) => <TradeAnalyticsPage {...p} /> },
+  { path: "risk", labelKey: "nav.risk", requiresDashboardRole: true, render: (p) => <RiskModelPage {...p} /> },
+  { path: "sla", labelKey: "nav.sla", requiresDashboardRole: true, render: (p) => <SlaBreachPage {...p} /> },
+  { path: "customs", labelKey: "nav.customs", requiresDashboardRole: true, render: (p) => <CustomsNrsPage {...p} /> },
+  { path: "briefing", labelKey: "nav.briefing", requiresDashboardRole: true, render: (p) => <WeeklyBriefingPage {...p} /> },
   {
     path: "port-performance",
-    label: "Port performance",
+    labelKey: "nav.portPerformance",
     requiresDashboardRole: true,
     requiredRoles: [PLATFORM_ADMIN_ROLE],
     render: (p) => <PortPerformancePage {...p} />,
   },
+  { path: "geo-heatmap", labelKey: "nav.geoHeatmap", requiresDashboardRole: true, render: (p) => <GeoHeatmapPage {...p} /> },
+  { path: "congestion-forecast", labelKey: "nav.congestionForecast", requiresDashboardRole: true, render: (p) => <CongestionForecastPage {...p} /> },
+  // #13: transparency dashboard is intentionally gated to any ministerial
+  // dashboard role (fmmbe-oversight/auditor included) rather than
+  // platform-admin-only — it is the public-accountability view.
+  { path: "transparency", labelKey: "nav.transparency", requiresDashboardRole: true, render: (p) => <TransparencyPage {...p} /> },
+  { path: "incident-sar", labelKey: "nav.incidentSar", requiresDashboardRole: true, render: (p) => <IncidentSarPage {...p} /> },
 ];
 
 function currentPath(): string {
@@ -139,6 +152,13 @@ export default function App() {
       return null;
     }
   }, [state]);
+  const { t, language, setLanguage } = useTranslation();
+  const geoBaseUrl = state.kind === "ready" ? resolveGeoApiBase(state.configuration) : null;
+  const tileStyleUrl = state.kind === "ready" ? state.configuration.geospatial?.tile_style_url : undefined;
+  const configuredBbox = state.kind === "ready" ? state.configuration.geospatial?.default_bbox : undefined;
+  const defaultBbox = configuredBbox === undefined
+    ? undefined
+    : { minLon: configuredBbox.min_lon, minLat: configuredBbox.min_lat, maxLon: configuredBbox.max_lon, maxLat: configuredBbox.max_lat };
 
   const activeItem = NAVIGATION.find((item) => item.path === path) ?? NAVIGATION[0];
   const dashboardAllowed = hasAnyRole(userRoles, DASHBOARD_ROLES);
@@ -204,29 +224,43 @@ export default function App() {
         </section>
       );
     }
-    return activeItem.render({ baseUrl: dashboardApiBase, token });
+    return activeItem.render({ baseUrl: dashboardApiBase, token, geoBaseUrl, tileStyleUrl, defaultBbox });
   }
 
   return (
     <main className="portal-shell">
       <header className="masthead">
         <div className="brand-block">
-          <p className="eyebrow">Federal Ministry Marine and Blue Economy</p>
+          <p className="eyebrow">{t("masthead.ministry")}</p>
           <h1>{title}</h1>
-          <p className="brand-description">Executive oversight surface for authorised, interoperable Blue Economy services.</p>
+          <p className="brand-description">{t("masthead.description")}</p>
         </div>
         <div className="session-panel" aria-live="polite">
           <span className={`status-dot ${authenticated ? "status-dot--success" : "status-dot--neutral"}`} />
-          <span>{authenticated ? "Authenticated session" : "Authentication required"}</span>
+          <span>{authenticated ? t("session.authenticated") : t("session.required")}</span>
+          <span className="language-switcher" role="group" aria-label={t("language.label")}>
+            {SUPPORTED_LANGUAGES.map((candidate) => (
+              <button
+                key={candidate}
+                className={`button ${candidate === language ? "" : "button--quiet"}`}
+                aria-pressed={candidate === language}
+                onClick={() => setLanguage(candidate)}
+              >
+                {LANGUAGE_LABELS[candidate]}
+              </button>
+            ))}
+          </span>
           <InstallPrompt />
           {state.kind === "ready" && (
-            authenticated ? <button className="button button--quiet" onClick={() => void startSignOut()}>Sign out</button> : <button className="button" onClick={() => void startSignIn()}>Sign in</button>
+            authenticated
+              ? <button className="button button--quiet" onClick={() => void startSignOut()}>{t("session.signOut")}</button>
+              : <button className="button" onClick={() => void startSignIn()}>{t("session.signIn")}</button>
           )}
         </div>
       </header>
 
       {state.kind === "ready" && (
-        <nav className="portal-nav" aria-label="Portal sections">
+        <nav className="portal-nav" aria-label={t("nav.aria")}>
           {NAVIGATION.map((item) => {
             const roleLocked = item.requiredRoles !== undefined && !hasAnyRole(userRoles, item.requiredRoles);
             const locked = (item.requiresDashboardRole && (!authenticated || !dashboardAllowed)) || (authenticated && roleLocked);
@@ -236,9 +270,9 @@ export default function App() {
                 className={`portal-nav__link ${item.path === activeItem.path ? "portal-nav__link--active" : ""} ${locked ? "portal-nav__link--locked" : ""}`}
                 href={`#/${item.path}`}
                 aria-current={item.path === activeItem.path ? "page" : undefined}
-                title={locked ? "Requires a ministerial oversight role" : undefined}
+                title={locked ? t("nav.lockedTitle") : undefined}
               >
-                {item.label}
+                {t(item.labelKey)}
               </a>
             );
           })}
