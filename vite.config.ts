@@ -6,5 +6,8 @@ export default defineConfig({
   build: {
     sourcemap: true,
     target: "es2023"
+    // maplibre-gl is split into its own async chunk automatically via the
+    // dynamic import() in src/components/MapPanel.tsx (loaded only when a
+    // map page mounts).
   }
 });

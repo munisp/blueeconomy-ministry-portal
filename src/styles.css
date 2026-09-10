@@ -114,3 +114,21 @@ h3 { margin: 18px 0 24px; font-size: 1.6rem; line-height: 1.08; }
 .briefing-evidence { margin-top: 18px; padding: 14px 16px; border-left: 3px solid #72d6a7; background: rgba(114, 214, 167, 0.08); color: #c9e8d8; font-size: 0.88rem; overflow-wrap: anywhere; }
 
 .install-prompt { border: 1px solid rgba(125, 226, 220, 0.5); border-radius: 999px; color: #a5ece8; }
+
+/* Phase 17: geospatial surfaces, incident/SAR mode, language switcher */
+.language-switcher { display: inline-flex; gap: 4px; }
+.map-panel { position: relative; margin-bottom: 20px; }
+.map-panel__canvas { width: 100%; height: 420px; border: 1px solid rgba(203, 231, 235, 0.19); background: #0b1d2a; }
+.map-panel__notice { position: absolute; top: 8px; left: 8px; z-index: 1; margin: 0; padding: 6px 10px; background: rgba(7, 28, 39, 0.88); color: #b6ccd3; font-size: 0.78rem; }
+.map-panel__notice--info { border-left: 3px solid #e9c46a; }
+.incident-list { list-style: none; margin: 0 0 20px; padding: 0; }
+.incident-item { margin-bottom: 12px; padding: 14px 16px; border: 1px solid rgba(203, 231, 235, 0.19); border-left-width: 4px; background: rgba(7, 28, 39, 0.6); }
+.incident-item--raised { border-left-color: #ef8f8f; }
+.incident-item--acknowledged { border-left-color: #e9c46a; }
+.incident-item--resolved { border-left-color: #4a5568; opacity: 0.8; }
+.incident-item p { margin: 0 0 8px; color: #d3e3e8; font-size: 0.9rem; }
+.forecast-table { width: 100%; margin: 20px 0 36px; border-collapse: collapse; font-size: 0.88rem; }
+.forecast-table caption { padding: 0 0 12px; color: #9db8c0; font-size: 0.78rem; text-align: left; }
+.forecast-table th { padding: 8px 12px; border-bottom: 2px solid rgba(125, 226, 220, 0.4); color: #8fe8e2; font-size: 0.72rem; text-align: left; text-transform: uppercase; }
+.forecast-table td { padding: 8px 12px; border-bottom: 1px solid rgba(203, 231, 235, 0.12); color: #d3e3e8; }
+.period-selector input { padding: 8px 10px; border: 1px solid rgba(203, 231, 235, 0.25); background: rgba(7, 28, 39, 0.6); color: #d3e3e8; }
