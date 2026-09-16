@@ -119,15 +119,21 @@ export async function apiGetSignedBlob(baseUrl: string, path: string, token: str
 
 /**
  * Resolve the KPI API base URL from the deployment-provided service registry.
- * The executive dashboards are served by the national single-window backend;
- * when no service carries an explicit id of `singlewindow` the first approved
- * service origin is used. Fail-closed: throws when the registry is empty.
+ * The executive dashboards are served by the national single-window backend.
+ * Fail-closed (Phase 19 M5): when no service carries an explicit id of
+ * `singlewindow` there is NO fallback — silently substituting another
+ * registry origin would fan the user's bearer token out to the wrong backend
+ * (e.g. the geo-service) and misreport the failure as "backend not
+ * configured". A missing entry is a deployment misconfiguration and must be
+ * fixed in the approved service registry, not papered over here.
  */
 export function resolveDashboardApiBase(configuration: PortalRuntimeConfiguration, serviceId = "singlewindow"): string {
-  const preferred = configuration.services.find((service) => service.id === serviceId);
-  const service = preferred ?? configuration.services[0];
+  const service = configuration.services.find((candidate) => candidate.id === serviceId);
   if (service === undefined) {
-    throw new ApiError("not-configured", "the approved service registry is empty; dashboard endpoints are unavailable");
+    throw new ApiError(
+      "not-configured",
+      `the approved service registry defines no "${serviceId}" service; dashboard endpoints are unavailable until the registry is corrected`,
+    );
   }
   return serviceApiOrigin(service);
 }

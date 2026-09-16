@@ -14,10 +14,10 @@ import type { DashboardPageProps } from "./props";
  * payloads are labelled unsigned. Totals are sums of backend-reported
  * figures only — null legs yield an honest "no data" card, never a guess.
  *
- * Role gate: any ministerial dashboard role (fmmbe-oversight / auditor /
- * platform-admin) — intentionally broader than the platform-admin-only
- * port-performance page, since this surface is the public-accountability
- * view. Backend authorisation remains authoritative.
+ * Role gate: any ministerial dashboard role (fmmbe-oversight /
+ * independent-auditor / nimasa-approver) — intentionally broader than the
+ * administration-only port-performance page, since this surface is the
+ * public-accountability view. Backend authorisation remains authoritative.
  */
 export function TransparencyPage({ baseUrl, token }: DashboardPageProps) {
   const { t } = useTranslation();
