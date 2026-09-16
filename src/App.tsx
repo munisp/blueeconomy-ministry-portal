@@ -5,7 +5,7 @@ import { OnboardingPanel } from "./OnboardingPanel";
 import { loadRuntimeConfiguration, type PortalRuntimeConfiguration, type ServiceRuntimeConfiguration } from "./runtime-config";
 import { probeService, type ServiceProbeResult } from "./service-client";
 import { resolveDashboardApiBase } from "./api-client";
-import { DASHBOARD_ROLES, PLATFORM_ADMIN_ROLE, extractRoles, hasAnyRole } from "./roles";
+import { ADMINISTRATION_ROLE, DASHBOARD_ROLES, SAR_LEDGER_ROLES, extractRoles, hasAnyRole } from "./roles";
 import { InstallPrompt } from "./InstallPrompt";
 import { ExecutiveDashboardPage } from "./pages/ExecutiveDashboardPage";
 import { OperationalKpisPage } from "./pages/OperationalKpisPage";
@@ -55,16 +55,21 @@ const NAVIGATION: NavigationItem[] = [
     path: "port-performance",
     labelKey: "nav.portPerformance",
     requiresDashboardRole: true,
-    requiredRoles: [PLATFORM_ADMIN_ROLE],
+    requiredRoles: [ADMINISTRATION_ROLE],
     render: (p) => <PortPerformancePage {...p} />,
   },
   { path: "geo-heatmap", labelKey: "nav.geoHeatmap", requiresDashboardRole: true, render: (p) => <GeoHeatmapPage {...p} /> },
   { path: "congestion-forecast", labelKey: "nav.congestionForecast", requiresDashboardRole: true, render: (p) => <CongestionForecastPage {...p} /> },
   // #13: transparency dashboard is intentionally gated to any ministerial
-  // dashboard role (fmmbe-oversight/auditor included) rather than
-  // platform-admin-only — it is the public-accountability view.
+  // dashboard role (fmmbe-oversight/independent-auditor included) rather than
+  // administration-only — it is the public-accountability view.
   { path: "transparency", labelKey: "nav.transparency", requiresDashboardRole: true, render: (p) => <TransparencyPage {...p} /> },
-  { path: "incident-sar", labelKey: "nav.incidentSar", requiresDashboardRole: true, render: (p) => <IncidentSarPage {...p} /> },
+  // Phase 19 M3: the SOS ledger is gated to the closest roles that actually
+  // exist in the blueeconomy-cvff realm catalogue (see SAR_LEDGER_ROLES in
+  // roles.ts). The geo-service additionally requires geo-sos-reader/geo-admin,
+  // which no realm declares yet — an operator realm change is required before
+  // any session can pass the backend check (documented in roles.ts).
+  { path: "incident-sar", labelKey: "nav.incidentSar", requiresDashboardRole: true, requiredRoles: SAR_LEDGER_ROLES, render: (p) => <IncidentSarPage {...p} /> },
 ];
 
 function currentPath(): string {
@@ -398,45 +403,3 @@ function ServiceDirectory({ services, authenticated, probes, probeInFlight, onPr
         </div>
         <p className="section-note">Backend authorisation remains authoritative. Required roles are shown for operational transparency.</p>
       </div>
-      <div className="service-grid">
-        {services.map((service) => {
-          const result = probes[service.id];
-          const waiting = probeInFlight === service.id;
-          return (
-            <article className="service-tile" key={service.id}>
-              <div className="service-tile__header">
-                <p className="service-id">{service.id}</p>
-                <ProbeStatus result={result} />
-              </div>
-              <h3>{service.label}</h3>
-              <div className="role-list" aria-label="Required roles">
-                {service.required_roles.map((role) => <span key={role}>{role}</span>)}
-              </div>
-              <button className="button button--outline" disabled={!authenticated || waiting} onClick={() => void onProbe(service)}>
-                {waiting ? "Probing authorised endpoint…" : authenticated ? "Probe authorised endpoint" : "Sign in to probe"}
-              </button>
-              {result !== undefined && <ProbeEvidence result={result} />}
-            </article>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-function ProbeStatus({ result }: { result: ServiceProbeResult | undefined }) {
-  if (result === undefined) {
-    return <span className="probe-status probe-status--neutral">Not yet probed</span>;
-  }
-  return <span className={`probe-status ${result.ok ? "probe-status--success" : "probe-status--failure"}`}>{result.ok ? "Observed available" : "Observed unavailable"}</span>;
-}
-
-function ProbeEvidence({ result }: { result: ServiceProbeResult }) {
-  return (
-    <p className="probe-evidence">
-      Observed at {new Date(result.completed_at).toLocaleString()}.
-      {result.http_status !== undefined ? ` HTTP ${result.http_status}.` : ""}
-      {result.failure !== undefined ? ` ${result.failure}` : ""}
-    </p>
-  );
-}
