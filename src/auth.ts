@@ -53,10 +53,21 @@ export function stripOidcResponseParameters(url: string): string {
 }
 
 export function buildUserManagerSettings(configuration: OidcRuntimeConfiguration): UserManagerSettings {
+  // Dedicated lightweight silent-renew target (Phase 19 M2). Without an
+  // explicit silent_redirect_uri oidc-client-ts iframes the full SPA
+  // redirect_uri every ~300s token lifetime — re-running bootstrap and the
+  // sign-in callback inside a hidden frame. silent-renew.html only relays
+  // the authorization response to the parent window via postMessage (the
+  // exact protocol oidc-client-ts's IFrameWindow expects).
+  // OPERATOR ACTION: the silent_renew_uri origin+path must be present in the
+  // ministry-portal client's redirect-URI allowlist in the environment
+  // repository (publicClientRedirects["ministry-portal"]).
+  const silentRenewUri = new URL("/silent-renew.html", configuration.redirect_uri).toString();
   return {
     authority: configuration.authority,
     client_id: configuration.client_id,
     redirect_uri: configuration.redirect_uri,
+    silent_redirect_uri: silentRenewUri,
     post_logout_redirect_uri: configuration.post_logout_redirect_uri,
     response_type: "code",
     scope: configuration.scope,
@@ -66,8 +77,6 @@ export function buildUserManagerSettings(configuration: OidcRuntimeConfiguration
     // the session silently expire mid-use.
     automaticSilentRenew: true,
     accessTokenExpiringNotificationTimeInSeconds: 60,
-    // Silent renew reuses redirect_uri via a hidden iframe against the realm's
-    // authorization endpoint (oidc-client-ts default silent_redirect_uri).
     filterProtocolClaims: true,
     loadUserInfo: false,
   };
