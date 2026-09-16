@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Session renewal</title>
+  </head>
+  <body>
+    <!--
+      Lightweight silent-renew callback target (Phase 19 M2). The oidc-client-ts
+      silent-renew iframe lands here with ?code&state (or ?error) instead of
+      booting the full SPA inside a hidden frame. This page replicates exactly
+      what UserManager.signinSilentCallback() does for an iframe response:
+      relay the callback URL to the parent window via postMessage using the
+      IFrameWindow.notifyParent protocol ({ source: "oidc-client", url,
+      keepOpen }); the parent's UserManager then completes the code exchange.
+      Loaded as a top-level page it does nothing.
+    -->
+    <script>
+      (function () {
+        if (window.parent === window) {
+          return;
+        }
+        window.parent.postMessage(
+          { source: "oidc-client", url: window.location.href, keepOpen: false },
+          window.location.origin,
+        );
+      })();
+    </script>
+  </body>
+</html>

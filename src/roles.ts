@@ -2,18 +2,47 @@ import type { User } from "oidc-client-ts";
 
 /**
  * Realm roles recognised by the ministry oversight surface, per the approved
- * workstream role catalogue (charts/keycloak-realms): the ministry-portal
- * public client is issued the `fmmbe-oversight` role; `platform-admin` and
- * `auditor` are the administrative/assurance roles.
+ * workstream role catalogue (gitops charts/keycloak-realms/values.yaml). The
+ * ministry-portal public client authenticates against the **blueeconomy-cvff**
+ * realm, whose role catalogue is:
+ *   nimasa-approver, pli-primary, pli-secondary, pli-tertiary,
+ *   receiving-bank-officer, beneficiary, cvff-beneficiary, cbn-observer,
+ *   independent-auditor, fmmbe-oversight, icrc-observer
+ *
+ * Role mapping (Phase 19 H2 — every constant below MUST name a role that
+ * exists in that catalogue; the previous `platform-admin` / `auditor`
+ * constants existed only in OPA policies and the ISR realm, so the
+ * port-performance gate was permanently unreachable):
+ *   - ministerial oversight  -> fmmbe-oversight   (ministry-portal's own role)
+ *   - administration         -> nimasa-approver   (NIMASA approving authority;
+ *                                                  closest existing admin role)
+ *   - assurance / audit      -> independent-auditor
  */
 export const MINISTERIAL_OVERSIGHT_ROLE = "fmmbe-oversight";
-export const PLATFORM_ADMIN_ROLE = "platform-admin";
-export const AUDITOR_ROLE = "auditor";
+export const ADMINISTRATION_ROLE = "nimasa-approver";
+export const AUDITOR_ROLE = "independent-auditor";
 
 export const DASHBOARD_ROLES: readonly string[] = [
   MINISTERIAL_OVERSIGHT_ROLE,
-  PLATFORM_ADMIN_ROLE,
+  ADMINISTRATION_ROLE,
   AUDITOR_ROLE,
+];
+
+/**
+ * Incident/SAR (SOS ledger) access. The geo-service enforces
+ * `geo-sos-reader` / `geo-admin` server-side
+ * (blueeconomy-geo-service route registration), but **no geo-* role exists
+ * in any realm of the approved Keycloak catalogue** (there is no geo realm)
+ * — so no cvff-realm session can ever satisfy the geo-service check until an
+ * operator adds `geo-sos-reader`/`geo-admin` to a realm
+ * (gitops charts/keycloak-realms/values.yaml; OPERATOR ACTION, Phase 19 M3).
+ * Until then this page is honestly gated to the closest existing roles: the
+ * NIMASA approving authority and ministerial oversight, which are the roles
+ * that would operate the SAR ledger.
+ */
+export const SAR_LEDGER_ROLES: readonly string[] = [
+  ADMINISTRATION_ROLE,
+  MINISTERIAL_OVERSIGHT_ROLE,
 ];
 
 /**
