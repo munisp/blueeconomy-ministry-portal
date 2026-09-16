@@ -69,7 +69,7 @@ const EN = {
   "sar.acknowledge": "Acknowledge",
   "sar.resolve": "Resolve",
   "sar.clearanceDenied":
-    "The geo-service refused the request (HTTP 403). The SOS ledger requires RESTRICTED clearance and a geo-sos role; your session does not carry them. No alerts are displayed.",
+    "The geo-service refused the request (HTTP 403). The SOS ledger requires RESTRICTED clearance and the geo-sos-reader or geo-admin role; your session does not carry them. Note: no geo-* role exists in the approved Keycloak realm catalogue yet — an operator must add geo-sos-reader/geo-admin to a realm before any session can pass this check. No alerts are displayed.",
   "transparency.title": "Public transparency dashboard",
   "transparency.signedProvenance": "Signed-data provenance",
   "transparency.unsigned": "No signed envelope accompanied this payload; provenance could not be established.",
@@ -127,7 +127,7 @@ const FR: Record<TranslationKey, string> = {
   "sar.acknowledge": "Accuser réception",
   "sar.resolve": "Résoudre",
   "sar.clearanceDenied":
-    "Le service géospatial a refusé la requête (HTTP 403). Le registre SOS exige une habilitation RESTRICTED et un rôle geo-sos ; votre session ne les possède pas. Aucune alerte n'est affichée.",
+    "Le service géospatial a refusé la requête (HTTP 403). Le registre SOS exige une habilitation RESTRICTED et le rôle geo-sos-reader ou geo-admin ; votre session ne les possède pas. À ce jour, aucun rôle geo-* n'existe dans le catalogue de realms Keycloak approuvé — un opérateur doit ajouter geo-sos-reader/geo-admin à un realm avant qu'une session puisse passer ce contrôle. Aucune alerte n'est affichée.",
   "transparency.title": "Tableau de bord public de transparence",
   "transparency.signedProvenance": "Provenance des données signées",
   "transparency.unsigned": "Aucune enveloppe signée n'accompagnait cette charge utile ; la provenance n'a pas pu être établie.",
