@@ -403,3 +403,45 @@ function ServiceDirectory({ services, authenticated, probes, probeInFlight, onPr
         </div>
         <p className="section-note">Backend authorisation remains authoritative. Required roles are shown for operational transparency.</p>
       </div>
+      <div className="service-grid">
+        {services.map((service) => {
+          const result = probes[service.id];
+          const waiting = probeInFlight === service.id;
+          return (
+            <article className="service-tile" key={service.id}>
+              <div className="service-tile__header">
+                <p className="service-id">{service.id}</p>
+                <ProbeStatus result={result} />
+              </div>
+              <h3>{service.label}</h3>
+              <div className="role-list" aria-label="Required roles">
+                {service.required_roles.map((role) => <span key={role}>{role}</span>)}
+              </div>
+              <button className="button button--outline" disabled={!authenticated || waiting} onClick={() => void onProbe(service)}>
+                {waiting ? "Probing authorised endpoint…" : authenticated ? "Probe authorised endpoint" : "Sign in to probe"}
+              </button>
+              {result !== undefined && <ProbeEvidence result={result} />}
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function ProbeStatus({ result }: { result: ServiceProbeResult | undefined }) {
+  if (result === undefined) {
+    return <span className="probe-status probe-status--neutral">Not yet probed</span>;
+  }
+  return <span className={`probe-status ${result.ok ? "probe-status--success" : "probe-status--failure"}`}>{result.ok ? "Observed available" : "Observed unavailable"}</span>;
+}
+
+function ProbeEvidence({ result }: { result: ServiceProbeResult }) {
+  return (
+    <p className="probe-evidence">
+      Observed at {new Date(result.completed_at).toLocaleString()}.
+      {result.http_status !== undefined ? ` HTTP ${result.http_status}.` : ""}
+      {result.failure !== undefined ? ` ${result.failure}` : ""}
+    </p>
+  );
+}
