@@ -76,6 +76,17 @@ describe("buildUserManagerSettings", () => {
     assert.ok((settings.accessTokenExpiringNotificationTimeInSeconds ?? 0) > 0);
   });
 
+  it("uses the dedicated lightweight silent-renew page, never the full SPA (Phase 19 M2)", () => {
+    const settings = buildUserManagerSettings(OIDC_CONFIGURATION);
+    assert.equal(settings.silent_redirect_uri, "https://portal.example.gov/silent-renew.html");
+    assert.notEqual(settings.silent_redirect_uri, settings.redirect_uri);
+  });
+
+  it("derives the silent-renew URI from the redirect origin for root-mounted deployments", () => {
+    const settings = buildUserManagerSettings({ ...OIDC_CONFIGURATION, redirect_uri: "https://portal.example.gov/" });
+    assert.equal(settings.silent_redirect_uri, "https://portal.example.gov/silent-renew.html");
+  });
+
   it("keeps the approved authority, client and redirect configuration", () => {
     const settings = buildUserManagerSettings(OIDC_CONFIGURATION);
     assert.equal(settings.authority, OIDC_CONFIGURATION.authority);

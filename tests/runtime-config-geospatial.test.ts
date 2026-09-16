@@ -14,7 +14,7 @@ const BASE = {
   administration: {
     onboarding_api_url: "https://admin.example.com",
     organization_id: "org-1",
-    allowed_roles: ["platform-admin"],
+    allowed_roles: ["nimasa-approver"],
   },
   services: [
     { id: "singlewindow", label: "NSW", health_url: "https://nsw.example.com/health", required_roles: ["fmmbe-oversight"] },
