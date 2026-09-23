@@ -436,6 +436,17 @@ const GEO_TIMEOUT_MS = 15_000;
 async function geoFetch(baseUrl: string, path: string, token: string, init?: RequestInit): Promise<unknown> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), GEO_TIMEOUT_MS);
+  // Link caller-provided cancellation (viewport moved, tab hidden) into the
+  // same controller that enforces the request timeout.
+  const callerSignal = init?.signal ?? null;
+  const onCallerAbort = () => controller.abort();
+  if (callerSignal !== null) {
+    if (callerSignal.aborted) {
+      controller.abort();
+    } else {
+      callerSignal.addEventListener("abort", onCallerAbort, { once: true });
+    }
+  }
   let response: Response;
   try {
     response = await fetch(new URL(path, baseUrl), {
@@ -450,9 +461,15 @@ async function geoFetch(baseUrl: string, path: string, token: string, init?: Req
       signal: controller.signal,
     });
   } catch (error) {
+    // Surface cancellations distinctly so pollers can swallow them silently
+    // instead of flashing an error state.
+    if (controller.signal.aborted) {
+      throw new DOMException("The geo request was aborted.", "AbortError");
+    }
     throw new GeoApiError("network", error instanceof Error ? error.message : "network request failed");
   } finally {
     clearTimeout(timeout);
+    callerSignal?.removeEventListener("abort", onCallerAbort);
   }
   let candidate: unknown = null;
   const text = await response.text();
@@ -484,9 +501,9 @@ function validated<T>(candidate: unknown, path: string, validate: (value: unknow
   }
 }
 
-export async function fetchVesselsInBbox(baseUrl: string, token: string, bbox: Bbox, limit = 1000): Promise<VesselListResult> {
+export async function fetchVesselsInBbox(baseUrl: string, token: string, bbox: Bbox, limit = 1000, signal?: AbortSignal): Promise<VesselListResult> {
   const path = `${GEO_ENDPOINTS.vessels}?bbox=${bboxToQuery(bbox)}&limit=${limit}`;
-  return validated(await geoFetch(baseUrl, path, token), path, validateVesselList);
+  return validated(await geoFetch(baseUrl, path, token, signal === undefined ? undefined : { signal }), path, validateVesselList);
 }
 
 export async function fetchFences(baseUrl: string, token: string): Promise<FenceListResult> {
