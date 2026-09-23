@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactElement } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState, type ComponentType, type LazyExoticComponent, type ReactElement } from "react";
 import type { User, UserManager } from "oidc-client-ts";
 import { accessToken, classifyAuthenticationError, completeAuthenticationCallback, createUserManager } from "./auth";
 import { OnboardingPanel } from "./OnboardingPanel";
@@ -7,19 +7,32 @@ import { probeService, type ServiceProbeResult } from "./service-client";
 import { resolveDashboardApiBase } from "./api-client";
 import { ADMINISTRATION_ROLE, DASHBOARD_ROLES, SAR_LEDGER_ROLES, extractRoles, hasAnyRole } from "./roles";
 import { InstallPrompt } from "./InstallPrompt";
-import { ExecutiveDashboardPage } from "./pages/ExecutiveDashboardPage";
-import { OperationalKpisPage } from "./pages/OperationalKpisPage";
-import { TradeAnalyticsPage } from "./pages/TradeAnalyticsPage";
-import { RiskModelPage } from "./pages/RiskModelPage";
-import { SlaBreachPage } from "./pages/SlaBreachPage";
-import { CustomsNrsPage } from "./pages/CustomsNrsPage";
-import { MinisterialKpiPackPage } from "./pages/MinisterialKpiPackPage";
-import { WeeklyBriefingPage } from "./pages/WeeklyBriefingPage";
-import { PortPerformancePage } from "./pages/PortPerformancePage";
-import { GeoHeatmapPage } from "./pages/GeoHeatmapPage";
-import { CongestionForecastPage } from "./pages/CongestionForecastPage";
-import { TransparencyPage } from "./pages/TransparencyPage";
-import { IncidentSarPage } from "./pages/IncidentSarPage";
+// Phase 21 perf: every dashboard page is code-split with React.lazy so the
+// initial bundle only carries the shell, auth and administration directory.
+// Each page renders behind a skeleton Suspense boundary (see renderActivePage).
+function lazyPage<T extends ComponentType<DashboardPageProps>>(
+  loader: () => Promise<{ [key: string]: T }>,
+  exportName: string,
+): LazyExoticComponent<T> {
+  return lazy(async () => {
+    const module = await loader();
+    return { default: module[exportName] };
+  });
+}
+
+const ExecutiveDashboardPage = lazyPage(() => import("./pages/ExecutiveDashboardPage"), "ExecutiveDashboardPage");
+const OperationalKpisPage = lazyPage(() => import("./pages/OperationalKpisPage"), "OperationalKpisPage");
+const TradeAnalyticsPage = lazyPage(() => import("./pages/TradeAnalyticsPage"), "TradeAnalyticsPage");
+const RiskModelPage = lazyPage(() => import("./pages/RiskModelPage"), "RiskModelPage");
+const SlaBreachPage = lazyPage(() => import("./pages/SlaBreachPage"), "SlaBreachPage");
+const CustomsNrsPage = lazyPage(() => import("./pages/CustomsNrsPage"), "CustomsNrsPage");
+const MinisterialKpiPackPage = lazyPage(() => import("./pages/MinisterialKpiPackPage"), "MinisterialKpiPackPage");
+const WeeklyBriefingPage = lazyPage(() => import("./pages/WeeklyBriefingPage"), "WeeklyBriefingPage");
+const PortPerformancePage = lazyPage(() => import("./pages/PortPerformancePage"), "PortPerformancePage");
+const GeoHeatmapPage = lazyPage(() => import("./pages/GeoHeatmapPage"), "GeoHeatmapPage");
+const CongestionForecastPage = lazyPage(() => import("./pages/CongestionForecastPage"), "CongestionForecastPage");
+const TransparencyPage = lazyPage(() => import("./pages/TransparencyPage"), "TransparencyPage");
+const IncidentSarPage = lazyPage(() => import("./pages/IncidentSarPage"), "IncidentSarPage");
 import { resolveGeoApiBase } from "./geo-client";
 import { LANGUAGE_LABELS, SUPPORTED_LANGUAGES, useTranslation, type TranslationKey } from "./i18n";
 import type { DashboardPageProps } from "./pages/props";
@@ -229,7 +242,11 @@ export default function App() {
         </section>
       );
     }
-    return activeItem.render({ baseUrl: dashboardApiBase, token, geoBaseUrl, tileStyleUrl, defaultBbox });
+    return (
+      <Suspense fallback={<DashboardSkeleton />}>
+        {activeItem.render({ baseUrl: dashboardApiBase, token, geoBaseUrl, tileStyleUrl, defaultBbox })}
+      </Suspense>
+    );
   }
 
   return (
@@ -315,6 +332,16 @@ async function bootstrap(): Promise<ApplicationState> {
   }
   const user = callbackUser ?? await manager.getUser();
   return { kind: "ready", configuration, manager, user };
+}
+
+function DashboardSkeleton() {
+  return (
+    <section className="dashboard-section dashboard-skeleton" aria-busy="true" aria-label="Loading dashboard">
+      <div className="skeleton-block skeleton-block--heading" />
+      <div className="skeleton-block skeleton-block--panel" />
+      <div className="skeleton-block skeleton-block--panel" />
+    </section>
+  );
 }
 
 function LoadingState() {
