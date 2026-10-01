@@ -132,3 +132,18 @@ h3 { margin: 18px 0 24px; font-size: 1.6rem; line-height: 1.08; }
 .forecast-table th { padding: 8px 12px; border-bottom: 2px solid rgba(125, 226, 220, 0.4); color: #8fe8e2; font-size: 0.72rem; text-align: left; text-transform: uppercase; }
 .forecast-table td { padding: 8px 12px; border-bottom: 1px solid rgba(203, 231, 235, 0.12); color: #d3e3e8; }
 .period-selector input { padding: 8px 10px; border: 1px solid rgba(203, 231, 235, 0.25); background: rgba(7, 28, 39, 0.6); color: #d3e3e8; }
+
+/* Phase 21 perf: skeleton placeholders for lazily-loaded dashboard pages */
+.dashboard-skeleton { display: grid; gap: 18px; }
+.skeleton-block {
+  border-radius: 8px;
+  background: linear-gradient(90deg, rgba(24, 45, 51, 0.55) 25%, rgba(38, 66, 74, 0.65) 50%, rgba(24, 45, 51, 0.55) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+.skeleton-block--heading { height: 56px; max-width: 420px; }
+.skeleton-block--panel { height: 220px; }
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}

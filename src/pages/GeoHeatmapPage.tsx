@@ -23,6 +23,24 @@ interface VesselFeedState {
 
 const INITIAL_FEED: VesselFeedState = { vessels: [], staleCount: 0, updatedAt: null, error: null, polling: false };
 
+/** Debounce for viewport-driven refetches: moveend fires per gesture step. */
+const MOVEEND_DEBOUNCE_MS = 350;
+
+function isAbort(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
+/**
+ * Cheap change signature for the vessel feed. Positions update a handful of
+ * times per minute; identical payloads skip both the React state update and
+ * the MapLibre source setData (feature diffing).
+ */
+function vesselSignature(vessels: GeoVessel[]): string {
+  return vessels
+    .map((vessel) => `${vessel.mmsi}:${vessel.longitude.toFixed(5)},${vessel.latitude.toFixed(5)},${vessel.speedKnots},${vessel.observedAt}`)
+    .join("|");
+}
+
 function mapBoundsToBbox(map: MaplibreMap): Bbox {
   const bounds = map.getBounds();
   return {
@@ -45,14 +63,35 @@ export function GeoHeatmapPage({ geoBaseUrl, token, tileStyleUrl, defaultBbox }:
   const mapRef = useRef<MaplibreMap | null>(null);
   const [mapReady, setMapReady] = useState(0);
 
+  // In-flight request handle + last applied signature live in refs so the
+  // poll closure stays stable and superseded requests can be cancelled.
+  const abortRef = useRef<AbortController | null>(null);
+  const signatureRef = useRef<string>("");
+
   const poll = useCallback(async () => {
     if (geoBaseUrl === null || token === null || mapRef.current === null) {
       return;
     }
+    // Request cancellation: a newer poll supersedes any in-flight request
+    // (e.g. interval firing while a moveend refetch is still running).
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     setFeed((current) => ({ ...current, polling: true }));
     try {
       const bbox = mapBoundsToBbox(mapRef.current);
-      const result = await fetchVesselsInBbox(geoBaseUrl, token, bbox);
+      const result = await fetchVesselsInBbox(geoBaseUrl, token, bbox, 1000, controller.signal);
+      if (controller.signal.aborted) {
+        return;
+      }
+      const signature = vesselSignature(result.vessels);
+      // Feature diffing: skip the state update (and downstream MapLibre
+      // setData) when the payload is unchanged since the last applied poll.
+      if (signature === signatureRef.current) {
+        setFeed((current) => ({ ...current, polling: false, error: null }));
+        return;
+      }
+      signatureRef.current = signature;
       const nowMs = Date.now();
       setFeed({
         vessels: result.vessels,
@@ -62,6 +101,9 @@ export function GeoHeatmapPage({ geoBaseUrl, token, tileStyleUrl, defaultBbox }:
         polling: false,
       });
     } catch (error) {
+      if (isAbort(error) || controller.signal.aborted) {
+        return;
+      }
       const message =
         error instanceof GeoApiError && error.status === 403
           ? "The geo-service refused the request (HTTP 403): your session lacks a geo-reader role or sufficient clearance."
@@ -72,19 +114,48 @@ export function GeoHeatmapPage({ geoBaseUrl, token, tileStyleUrl, defaultBbox }:
     }
   }, [geoBaseUrl, token]);
 
-  // Poll on an interval once the map exists; re-poll after viewport moves settle.
+  // Poll on an interval once the map exists — but only while the tab is
+  // visible (hidden tabs stop burning geo-service quota); re-poll, debounced
+  // and coalesced, after viewport moves settle.
   useEffect(() => {
     if (geoBaseUrl === null || token === null || mapRef.current === null) {
       return;
     }
     void poll();
-    const interval = setInterval(() => void poll(), VESSEL_POLL_INTERVAL_MS);
+    const interval = setInterval(() => {
+      if (!document.hidden) {
+        void poll();
+      }
+    }, VESSEL_POLL_INTERVAL_MS);
     const map = mapRef.current;
-    const onMoveEnd = () => void poll();
+    let moveTimer: ReturnType<typeof setTimeout> | null = null;
+    const onMoveEnd = () => {
+      if (moveTimer !== null) {
+        clearTimeout(moveTimer);
+      }
+      moveTimer = setTimeout(() => {
+        moveTimer = null;
+        if (!document.hidden) {
+          void poll();
+        }
+      }, MOVEEND_DEBOUNCE_MS);
+    };
+    const onVisibility = () => {
+      if (!document.hidden) {
+        void poll();
+      }
+    };
     map.on("moveend", onMoveEnd);
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       clearInterval(interval);
       map.off("moveend", onMoveEnd);
+      document.removeEventListener("visibilitychange", onVisibility);
+      if (moveTimer !== null) {
+        clearTimeout(moveTimer);
+      }
+      abortRef.current?.abort();
+      abortRef.current = null;
     };
   }, [poll, mapReady, geoBaseUrl, token]);
 
