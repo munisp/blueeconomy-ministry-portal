@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect, useMemo, useState, type ComponentType, type 
 import type { User, UserManager } from "oidc-client-ts";
 import { accessToken, classifyAuthenticationError, completeAuthenticationCallback, createUserManager } from "./auth";
 import { OnboardingPanel } from "./OnboardingPanel";
+import { AdminOpsPanel } from "./AdminOpsPanel";
 import { loadRuntimeConfiguration, type PortalRuntimeConfiguration, type ServiceRuntimeConfiguration } from "./runtime-config";
 import { probeService, type ServiceProbeResult } from "./service-client";
 import { resolveDashboardApiBase } from "./api-client";
@@ -214,6 +215,7 @@ export default function App() {
       return (
         <>
           <OnboardingPanel configuration={state.configuration.administration} token={token} />
+          <AdminOpsPanel configuration={state.configuration.administration} token={token} />
           <ServiceDirectory
             services={state.configuration.services}
             authenticated={authenticated}
